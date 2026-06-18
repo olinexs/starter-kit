@@ -3,7 +3,6 @@
 namespace Eoads\StarterKit\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Str;
 
 class InstallCommand extends Command
 {
@@ -28,7 +27,7 @@ class InstallCommand extends Command
         $this->newLine();
 
         $this->publishStubs();
-        $this->ensureFrontendDirs();
+        $this->ensureDirs();
 
         $this->newLine();
         $this->components->success('EO-ADS Starter Kit installed successfully.');
@@ -37,16 +36,21 @@ class InstallCommand extends Command
         $this->components->twoColumnDetail('<fg=green>Project</>',      $this->vars['PROJECT_NAME']);
         $this->components->twoColumnDetail('<fg=green>Team</>',         $this->vars['TEAM_NAME']);
         $this->components->twoColumnDetail('<fg=green>module:make</>',  'available — use AI or run directly');
-        $this->components->twoColumnDetail('<fg=green>CLAUDE.md</>',    '.claude/CLAUDE.md');
-        $this->components->twoColumnDetail('<fg=green>Architecture</>', '.docs/ARCHITECTURE.md');
-        $this->components->twoColumnDetail('<fg=green>Sprint 01</>',    '.docs/sprints/sprint-01.md');
-        $this->components->twoColumnDetail('<fg=green>Design<//>',      '.design/DESIGN-SYSTEM.md');
+        $this->components->twoColumnDetail('<fg=green>CLAUDE.md</>',    'backend/.claude/CLAUDE.md');
+        $this->components->twoColumnDetail('<fg=green>Architecture</>', 'backend/.docs/ARCHITECTURE.md');
+        $this->components->twoColumnDetail('<fg=green>Sprint 01</>',    'backend/.docs/sprints/sprint-01.md');
+        $this->components->twoColumnDetail('<fg=green>Design</>',       'backend/.design/DESIGN-SYSTEM.md');
 
         $this->newLine();
+        $this->line('  <fg=cyan>Structure:</>');
+        $this->line('  project-root/');
+        $this->line('  ├── backend/   ← Laravel app (you are here)');
+        $this->line('  └── frontend/  ← Vue SPA');
+        $this->newLine();
         $this->line('  <fg=cyan>Onboarding steps:</>');
-        $this->line('  1. Open this project in Claude Code');
+        $this->line('  1. Open the project root in Claude Code: <comment>claude ..</comment>');
         $this->line('  2. Say: <comment>"I want to create a module for [your feature]"</comment>');
-        $this->line('  3. The AI scaffolds, implements, and wires everything.');
+        $this->line('  3. The AI scaffolds backend + frontend together.');
         $this->newLine();
         $this->line('  <fg=cyan>Or scaffold manually:</>');
         $this->line('  <comment>php artisan module:make YourModuleName</comment>');
@@ -80,7 +84,8 @@ class InstallCommand extends Command
     {
         foreach ($this->stubMap() as $stub => $destination) {
             $src  = "{$this->stubsPath}/{$stub}";
-            $dest = base_path($destination);
+            // destination is relative to project root (one level above backend/)
+            $dest = base_path("../{$destination}");
 
             if (! file_exists($src)) {
                 $this->components->warn("Stub not found: {$stub}");
@@ -112,20 +117,22 @@ class InstallCommand extends Command
         return str_replace($search, $replace, $content);
     }
 
-    private function ensureFrontendDirs(): void
+    private function ensureDirs(): void
     {
         $dirs = [
-            'resources/js/modules',
-            'resources/js/plugins/router',
-            'resources/js/stores',
-            'resources/js/layouts/components',
-            '.design/assets',
-            '.design/preview',
-            '.docs/sprints/archive',
+            // backend dirs (relative to project root)
+            'backend/.docs/sprints/archive',
+            'backend/.design/assets',
+            'backend/.design/preview',
+            // frontend dirs
+            'frontend/resources/js/modules',
+            'frontend/resources/js/plugins/router',
+            'frontend/resources/js/stores',
+            'frontend/resources/js/layouts/components',
         ];
 
         foreach ($dirs as $dir) {
-            $path = base_path($dir);
+            $path = base_path("../{$dir}");
             if (! is_dir($path)) {
                 mkdir($path, 0755, true);
                 $this->components->twoColumnDetail("<fg=green>CREATE</> {$dir}/", 'done');
@@ -140,27 +147,29 @@ class InstallCommand extends Command
         $sprintPadded = str_pad($this->vars['SPRINT_NUMBER'], 2, '0', STR_PAD_LEFT);
 
         return [
-            '.claude/CLAUDE.md'                               => '.claude/CLAUDE.md',
-            '.claude/settings.local.json'                    => '.claude/settings.local.json',
-            'AGENTS.md'                                      => 'AGENTS.md',
-            '.docs/ARCHITECTURE.md'                          => '.docs/ARCHITECTURE.md',
-            '.docs/TEMPLATE-ADAPTATION.md'                   => '.docs/TEMPLATE-ADAPTATION.md',
-            '.docs/app-blueprint.md'                         => '.docs/app-blueprint.md',
-            '.docs/sprints/sprint-roadmap.md'                => '.docs/sprints/sprint-roadmap.md',
-            '.docs/sprints/sprint-01.md'                     => ".docs/sprints/sprint-{$sprintPadded}.md",
-            '.skills/test-driven-development/SKILL.md'        => '.skills/test-driven-development/SKILL.md',
-            '.skills/systematic-debugging/SKILL.md'           => '.skills/systematic-debugging/SKILL.md',
-            '.skills/writing-plans/SKILL.md'                  => '.skills/writing-plans/SKILL.md',
-            '.skills/verification-before-completion/SKILL.md' => '.skills/verification-before-completion/SKILL.md',
-            '.design/README.md'                              => '.design/README.md',
-            '.design/SKILL.md'                               => '.design/SKILL.md',
-            '.design/DESIGN-SYSTEM.md'                       => '.design/DESIGN-SYSTEM.md',
-            '.design/colors_and_type.css'                    => '.design/colors_and_type.css',
-            'resources/js/plugins/axios.js'                  => 'resources/js/plugins/axios.js',
-            'resources/js/plugins/router/routes.js'          => 'resources/js/plugins/router/routes.js',
-            'resources/js/stores/toastStore.js'              => 'resources/js/stores/toastStore.js',
-            'resources/js/layouts/components/NavItems.vue'   => 'resources/js/layouts/components/NavItems.vue',
-            'dev-agent.sh'                                   => 'dev-agent.sh',
+            // backend — docs, AI context, design
+            '.claude/CLAUDE.md'                               => 'backend/.claude/CLAUDE.md',
+            '.claude/settings.local.json'                    => 'backend/.claude/settings.local.json',
+            'AGENTS.md'                                      => 'backend/AGENTS.md',
+            '.docs/ARCHITECTURE.md'                          => 'backend/.docs/ARCHITECTURE.md',
+            '.docs/TEMPLATE-ADAPTATION.md'                   => 'backend/.docs/TEMPLATE-ADAPTATION.md',
+            '.docs/app-blueprint.md'                         => 'backend/.docs/app-blueprint.md',
+            '.docs/sprints/sprint-roadmap.md'                => 'backend/.docs/sprints/sprint-roadmap.md',
+            '.docs/sprints/sprint-01.md'                     => "backend/.docs/sprints/sprint-{$sprintPadded}.md",
+            '.skills/test-driven-development/SKILL.md'       => 'backend/.skills/test-driven-development/SKILL.md',
+            '.skills/systematic-debugging/SKILL.md'          => 'backend/.skills/systematic-debugging/SKILL.md',
+            '.skills/writing-plans/SKILL.md'                 => 'backend/.skills/writing-plans/SKILL.md',
+            '.skills/verification-before-completion/SKILL.md'=> 'backend/.skills/verification-before-completion/SKILL.md',
+            '.design/README.md'                              => 'backend/.design/README.md',
+            '.design/SKILL.md'                               => 'backend/.design/SKILL.md',
+            '.design/DESIGN-SYSTEM.md'                       => 'backend/.design/DESIGN-SYSTEM.md',
+            '.design/colors_and_type.css'                    => 'backend/.design/colors_and_type.css',
+            'dev-agent.sh'                                   => 'backend/dev-agent.sh',
+            // frontend — base JS files
+            'resources/js/plugins/axios.js'                  => 'frontend/resources/js/plugins/axios.js',
+            'resources/js/plugins/router/routes.js'          => 'frontend/resources/js/plugins/router/routes.js',
+            'resources/js/stores/toastStore.js'              => 'frontend/resources/js/stores/toastStore.js',
+            'resources/js/layouts/components/NavItems.vue'   => 'frontend/resources/js/layouts/components/NavItems.vue',
         ];
     }
 }

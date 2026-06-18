@@ -6,10 +6,10 @@
 
 > Primary AI instruction file. Read at the start of every session.
 >
-> Architecture  → `.docs/ARCHITECTURE.md`
-> Domain model  → `.docs/app-blueprint.md`
-> Active sprint → `.docs/sprints/sprint-{SPRINT_PADDED}.md` (latest non-archived)
-> Design system → `.design/DESIGN-SYSTEM.md`
+> Architecture  → `backend/.docs/ARCHITECTURE.md`
+> Domain model  → `backend/.docs/app-blueprint.md`
+> Active sprint → `backend/.docs/sprints/sprint-{SPRINT_PADDED}.md` (latest non-archived)
+> Design system → `backend/.design/DESIGN-SYSTEM.md`
 
 ---
 
@@ -19,7 +19,7 @@ These actions happen WITHOUT the developer needing to ask:
 
 | Trigger | AI Action |
 |---|---|
-| "create a module for X" | Run `php artisan module:make X`, then implement |
+| "create a module for X" | Run `php artisan module:make X` from `backend/`, then implement |
 | "add a new module" | Ask for the module name, then run `module:make` |
 | Starting a new brief | Read the active sprint doc first |
 | Finishing a brief | Tick the checklist in the sprint doc + commit |
@@ -32,11 +32,16 @@ These actions happen WITHOUT the developer needing to ask:
 When the developer says they want a new module (any phrasing):
 
 ```bash
-# 1. Scaffold both backend and frontend
+# 1. Run from the backend directory
+cd backend
 php artisan module:make {ModuleName}
 
-# 2. Register the frontend route in resources/js/plugins/router/routes.js
-# 3. Add the nav item in resources/js/layouts/components/NavItems.vue
+# Creates:
+# backend/Modules/{ModuleName}/              ← backend
+# frontend/resources/js/modules/{moduleName}/ ← frontend
+
+# 2. Register the frontend route in frontend/resources/js/plugins/router/routes.js
+# 3. Add the nav item in frontend/resources/js/layouts/components/NavItems.vue
 # 4. Add a brief to the active sprint doc
 # 5. Confirm to the developer what was created
 ```
@@ -51,9 +56,11 @@ Never ask the developer to run these commands themselves. Run them directly.
 |---|---|
 | Project | {PROJECT_NAME} |
 | Team | {TEAM_NAME} |
+| Structure | `project-root/backend/` + `project-root/frontend/` |
 | Backend | Laravel 12, API-only, port 8000 |
 | Frontend | Vue 3 + Vite SPA, port 5173 |
-| Module system | nwidart/laravel-modules (backend) + `resources/js/modules/` (frontend) |
+| Module system | nwidart/laravel-modules (`backend/Modules/`) |
+| Frontend modules | `frontend/resources/js/modules/` |
 | Auth | Keycloak (primary) + Sanctum (fallback) |
 | Database | MariaDB (Galera multi-node in production) |
 | State | Pinia |
@@ -96,7 +103,7 @@ class CreateItemAction
 public function __construct(private ItemRepositoryInterface $repo) {}
 ```
 
-### Rule 5 — Migrations live in `database/migrations/` only
+### Rule 5 — Migrations live in `backend/database/migrations/` only
 Never inside `Modules/`.
 
 ### Rule 6 — Route middleware
@@ -112,11 +119,39 @@ return ItemResource::collection($items);
 
 ---
 
+## Backend Module Structure
+
+```
+backend/Modules/{Name}/
+├── app/
+│   ├── Http/
+│   │   ├── Controllers/
+│   │   ├── Requests/
+│   │   └── Resources/
+│   ├── Actions/
+│   ├── Services/
+│   ├── Repositories/
+│   │   ├── {Name}RepositoryInterface.php
+│   │   └── Eloquent{Name}Repository.php
+│   ├── Models/
+│   ├── Enums/
+│   ├── Events/
+│   ├── Observers/
+│   └── Notifications/
+├── Providers/
+│   └── {Name}ServiceProvider.php
+└── routes/
+    ├── api.php
+    └── web.php
+```
+
+---
+
 ## Frontend Conventions
 
 ### Rule 1 — Module structure
 ```
-resources/js/modules/{moduleName}/
+frontend/resources/js/modules/{moduleName}/
 ├── services/{moduleName}Service.js   ← ALL axios calls
 ├── stores/{moduleName}Store.js       ← Pinia store
 ├── views/{ModuleName}View.vue        ← page component
@@ -137,20 +172,19 @@ import axios from 'axios'           // ❌
 
 ### Rule 4 — Service layer owns all API calls
 ```js
-// Store calls the service — never call api directly from a component
 const res = await itemService.index(params)
 ```
 
 ### Rule 5 — Register every new module route
 ```js
-// resources/js/plugins/router/routes.js
+// frontend/resources/js/plugins/router/routes.js
 import itemRoutes from '@/modules/item/routes'
 export const routes = [...existing, ...itemRoutes]
 ```
 
 ### Rule 6 — Add nav item for every user-facing module
 ```js
-// resources/js/layouts/components/NavItems.vue
+// frontend/resources/js/layouts/components/NavItems.vue
 { title: 'Item', icon: 'mdi-package', to: '/item' }
 ```
 
@@ -158,7 +192,7 @@ export const routes = [...existing, ...itemRoutes]
 
 ## Sprint Workflow
 
-1. Find the active sprint: latest `.docs/sprints/sprint-XX.md` not in `archive/`
+1. Find the active sprint: latest `backend/.docs/sprints/sprint-XX.md` not in `archive/`
 2. Read the brief before implementing
 3. Implement exactly what the brief describes — nothing more
 4. After completing: tick `[x]` the checklist + commit
@@ -178,7 +212,7 @@ chore: what was updated
 - Call `axios` directly from a Vue component
 - Use Options API (`export default {}`)
 - Put migrations inside `Modules/`
-- Hardcode colours — use `.design/colors_and_type.css` tokens
+- Hardcode colours — use `backend/.design/colors_and_type.css` tokens
 - Leave `dd()`, `var_dump()`, or `console.log()` in committed code
 - Skip writing the FormRequest for any user input
 - Implement beyond what the current sprint brief specifies
