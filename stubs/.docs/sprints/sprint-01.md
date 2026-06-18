@@ -1,15 +1,16 @@
-# Sprint 01 — Foundation & Auth
+# Sprint {SPRINT_PADDED} — {SPRINT_TITLE}
 
 **Status**: active
-**Goal**: Establish project foundation — module scaffold, authentication, shared infrastructure.
-**ETC**: —
-**PIC**: —
+**Goal**: {SPRINT_TITLE}
+**ETC**: {SPRINT_ETC}
+**PIC**: {SPRINT_PIC}
+**Team**: {TEAM_NAME}
 
 ---
 
 ## Briefs
 
-### Brief 01-01 — Project scaffold validation
+### Brief {SPRINT_PADDED}-01 — Project scaffold validation
 
 **Objective**: Confirm the starter kit installed correctly and the toolchain works.
 
@@ -22,9 +23,9 @@
 
 ---
 
-### Brief 01-02 — Authentication module
+### Brief {SPRINT_PADDED}-02 — Authentication module
 
-**Objective**: Implement login/logout using Keycloak with Sanctum fallback.
+**Objective**: Implement login/logout with Keycloak (Sanctum fallback).
 
 **Acceptance criteria**:
 - [ ] `POST /api/auth/login` returns `{ data: { token }, message }`
@@ -46,12 +47,12 @@
 
 ## Sprint Checklist
 
-- [ ] Brief 01-01 complete
-- [ ] Brief 01-02 complete
+- [ ] Brief {SPRINT_PADDED}-01 complete
+- [ ] Brief {SPRINT_PADDED}-02 complete
 - [ ] All tests pass (`php artisan test`)
 - [ ] No lint errors (`npm run lint`)
 - [ ] Sprint doc committed and archived
 
 ## Notes
 
-<!-- Record decisions, blockers, or changes in scope here -->
+<!-- Record decisions, blockers, or scope changes here -->

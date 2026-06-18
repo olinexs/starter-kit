@@ -14,6 +14,7 @@ class InstallCommand extends Command
 
     private string $stubsPath;
     private bool   $force;
+    private array  $vars = [];
 
     public function handle(): int
     {
@@ -23,6 +24,9 @@ class InstallCommand extends Command
         $this->components->info('Installing EO-ADS Starter Kit...');
         $this->newLine();
 
+        $this->collectProjectInfo();
+        $this->newLine();
+
         $this->publishStubs();
         $this->ensureFrontendDirs();
 
@@ -30,18 +34,19 @@ class InstallCommand extends Command
         $this->components->success('EO-ADS Starter Kit installed successfully.');
         $this->newLine();
 
-        $this->components->twoColumnDetail('<fg=green>Laravel</>',       'ready');
-        $this->components->twoColumnDetail('<fg=green>module:make</>',   'available — use AI or run directly');
-        $this->components->twoColumnDetail('<fg=green>CLAUDE.md</>',     '.claude/CLAUDE.md');
-        $this->components->twoColumnDetail('<fg=green>Architecture</>',  '.docs/ARCHITECTURE.md');
-        $this->components->twoColumnDetail('<fg=green>Sprint</>',        '.docs/sprints/sprint-01.md');
-        $this->components->twoColumnDetail('<fg=green>Design system</>', '.design/DESIGN-SYSTEM.md');
+        $this->components->twoColumnDetail('<fg=green>Project</>',      $this->vars['PROJECT_NAME']);
+        $this->components->twoColumnDetail('<fg=green>Team</>',         $this->vars['TEAM_NAME']);
+        $this->components->twoColumnDetail('<fg=green>module:make</>',  'available — use AI or run directly');
+        $this->components->twoColumnDetail('<fg=green>CLAUDE.md</>',    '.claude/CLAUDE.md');
+        $this->components->twoColumnDetail('<fg=green>Architecture</>', '.docs/ARCHITECTURE.md');
+        $this->components->twoColumnDetail('<fg=green>Sprint 01</>',    '.docs/sprints/sprint-01.md');
+        $this->components->twoColumnDetail('<fg=green>Design<//>',      '.design/DESIGN-SYSTEM.md');
 
         $this->newLine();
         $this->line('  <fg=cyan>Onboarding steps:</>');
         $this->line('  1. Open this project in Claude Code');
         $this->line('  2. Say: <comment>"I want to create a module for [your feature]"</comment>');
-        $this->line('  3. The AI will scaffold, implement, and wire everything for you.');
+        $this->line('  3. The AI scaffolds, implements, and wires everything.');
         $this->newLine();
         $this->line('  <fg=cyan>Or scaffold manually:</>');
         $this->line('  <comment>php artisan module:make YourModuleName</comment>');
@@ -49,13 +54,31 @@ class InstallCommand extends Command
         return self::SUCCESS;
     }
 
+    // ─── Collect project info ─────────────────────────────────────────────────
+
+    private function collectProjectInfo(): void
+    {
+        $appName = config('app.name', 'My App');
+
+        $this->vars = [
+            'PROJECT_NAME'    => $this->ask('Project name', $appName),
+            'PROJECT_DESC'    => $this->ask('Project description', 'EO-ADS application'),
+            'TEAM_NAME'       => $this->ask('Team / department name', 'A&D Department'),
+            'SPRINT_NUMBER'   => $this->ask('First sprint number', '01'),
+            'SPRINT_TITLE'    => $this->ask('First sprint title', 'Foundation & Auth'),
+            'SPRINT_PIC'      => $this->ask('Sprint PIC (person in charge)', '—'),
+            'SPRINT_ETC'      => $this->ask('Sprint ETC (estimated completion)', '—'),
+            'YEAR'            => date('Y'),
+        ];
+
+        $this->vars['SPRINT_PADDED'] = str_pad($this->vars['SPRINT_NUMBER'], 2, '0', STR_PAD_LEFT);
+    }
+
     // ─── Publish stubs ────────────────────────────────────────────────────────
 
     private function publishStubs(): void
     {
-        $map = $this->stubMap();
-
-        foreach ($map as $stub => $destination) {
+        foreach ($this->stubMap() as $stub => $destination) {
             $src  = "{$this->stubsPath}/{$stub}";
             $dest = base_path($destination);
 
@@ -74,9 +97,19 @@ class InstallCommand extends Command
                 mkdir($dir, 0755, true);
             }
 
-            copy($src, $dest);
+            $content = file_get_contents($src);
+            $content = $this->replacePlaceholders($content);
+
+            file_put_contents($dest, $content);
             $this->components->twoColumnDetail("<fg=green>CREATE</> {$destination}", 'done');
         }
+    }
+
+    private function replacePlaceholders(string $content): string
+    {
+        $search  = array_map(fn ($k) => "{{$k}}", array_keys($this->vars));
+        $replace = array_values($this->vars);
+        return str_replace($search, $replace, $content);
     }
 
     private function ensureFrontendDirs(): void
@@ -100,43 +133,34 @@ class InstallCommand extends Command
         }
     }
 
-    // ─── Stub map: stub-file => destination-in-project ───────────────────────
+    // ─── Stub map ─────────────────────────────────────────────────────────────
 
     private function stubMap(): array
     {
+        $sprintPadded = str_pad($this->vars['SPRINT_NUMBER'], 2, '0', STR_PAD_LEFT);
+
         return [
-            // AI context
-            '.claude/CLAUDE.md'                              => '.claude/CLAUDE.md',
-            '.claude/settings.local.json'                   => '.claude/settings.local.json',
-            'AGENTS.md'                                     => 'AGENTS.md',
-
-            // Documentation
-            '.docs/ARCHITECTURE.md'                         => '.docs/ARCHITECTURE.md',
-            '.docs/TEMPLATE-ADAPTATION.md'                  => '.docs/TEMPLATE-ADAPTATION.md',
-            '.docs/app-blueprint.md'                        => '.docs/app-blueprint.md',
-            '.docs/sprints/sprint-roadmap.md'               => '.docs/sprints/sprint-roadmap.md',
-            '.docs/sprints/sprint-01.md'                    => '.docs/sprints/sprint-01.md',
-
-            // Skills
-            '.skills/test-driven-development/SKILL.md'       => '.skills/test-driven-development/SKILL.md',
-            '.skills/systematic-debugging/SKILL.md'          => '.skills/systematic-debugging/SKILL.md',
-            '.skills/writing-plans/SKILL.md'                 => '.skills/writing-plans/SKILL.md',
+            '.claude/CLAUDE.md'                               => '.claude/CLAUDE.md',
+            '.claude/settings.local.json'                    => '.claude/settings.local.json',
+            'AGENTS.md'                                      => 'AGENTS.md',
+            '.docs/ARCHITECTURE.md'                          => '.docs/ARCHITECTURE.md',
+            '.docs/TEMPLATE-ADAPTATION.md'                   => '.docs/TEMPLATE-ADAPTATION.md',
+            '.docs/app-blueprint.md'                         => '.docs/app-blueprint.md',
+            '.docs/sprints/sprint-roadmap.md'                => '.docs/sprints/sprint-roadmap.md',
+            '.docs/sprints/sprint-01.md'                     => ".docs/sprints/sprint-{$sprintPadded}.md",
+            '.skills/test-driven-development/SKILL.md'        => '.skills/test-driven-development/SKILL.md',
+            '.skills/systematic-debugging/SKILL.md'           => '.skills/systematic-debugging/SKILL.md',
+            '.skills/writing-plans/SKILL.md'                  => '.skills/writing-plans/SKILL.md',
             '.skills/verification-before-completion/SKILL.md' => '.skills/verification-before-completion/SKILL.md',
-
-            // Design system
-            '.design/README.md'                             => '.design/README.md',
-            '.design/SKILL.md'                              => '.design/SKILL.md',
-            '.design/DESIGN-SYSTEM.md'                      => '.design/DESIGN-SYSTEM.md',
-            '.design/colors_and_type.css'                   => '.design/colors_and_type.css',
-
-            // Frontend base
-            'resources/js/plugins/axios.js'                 => 'resources/js/plugins/axios.js',
-            'resources/js/plugins/router/routes.js'         => 'resources/js/plugins/router/routes.js',
-            'resources/js/stores/toastStore.js'             => 'resources/js/stores/toastStore.js',
-            'resources/js/layouts/components/NavItems.vue'  => 'resources/js/layouts/components/NavItems.vue',
-
-            // Shell launcher
-            'dev-agent.sh'                                  => 'dev-agent.sh',
+            '.design/README.md'                              => '.design/README.md',
+            '.design/SKILL.md'                               => '.design/SKILL.md',
+            '.design/DESIGN-SYSTEM.md'                       => '.design/DESIGN-SYSTEM.md',
+            '.design/colors_and_type.css'                    => '.design/colors_and_type.css',
+            'resources/js/plugins/axios.js'                  => 'resources/js/plugins/axios.js',
+            'resources/js/plugins/router/routes.js'          => 'resources/js/plugins/router/routes.js',
+            'resources/js/stores/toastStore.js'              => 'resources/js/stores/toastStore.js',
+            'resources/js/layouts/components/NavItems.vue'   => 'resources/js/layouts/components/NavItems.vue',
+            'dev-agent.sh'                                   => 'dev-agent.sh',
         ];
     }
 }

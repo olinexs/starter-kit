@@ -1,14 +1,20 @@
-# Application Blueprint
+# Application Blueprint — {PROJECT_NAME}
 
-> Domain model and business rules for this application.
+**Project**: {PROJECT_NAME}
+**Description**: {PROJECT_DESC}
+**Team**: {TEAM_NAME}
+**Year**: {YEAR}
+
 > Update this file as the domain evolves.
-> The AI reads this to understand entities, relationships, and constraints.
+> The AI reads this to understand entities, relationships, and business rules.
 
 ---
 
 ## Application Purpose
 
-<!-- One paragraph: what does this application do and who uses it? -->
+{PROJECT_DESC}
+
+<!-- Expand with more detail: who uses it, what problems it solves -->
 
 ---
 
@@ -37,7 +43,7 @@ Entity [key fields]
 
 <!-- List rules as facts the AI must never violate when generating code. -->
 
-1. <!-- Example: A Purchase Order cannot be deleted once it has been approved. -->
+1. <!-- Example: A record cannot be deleted once it has been approved. -->
 
 ---
 

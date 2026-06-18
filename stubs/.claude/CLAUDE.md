@@ -1,12 +1,15 @@
-# CLAUDE.md — EO-ADS AI Development Guide
+# CLAUDE.md — {PROJECT_NAME}
 
-> This file is the primary instruction set for Claude Code.
-> Read it at the start of every session. All conventions here are non-negotiable.
+**Project**: {PROJECT_NAME}
+**Team**: {TEAM_NAME}
+**Year**: {YEAR}
+
+> Primary AI instruction file. Read at the start of every session.
 >
-> Architecture detail  → `.docs/ARCHITECTURE.md`
-> Domain model         → `.docs/app-blueprint.md`
-> Active sprint        → `.docs/sprints/sprint-XX.md` (latest non-archived)
-> Design system        → `.design/DESIGN-SYSTEM.md`
+> Architecture  → `.docs/ARCHITECTURE.md`
+> Domain model  → `.docs/app-blueprint.md`
+> Active sprint → `.docs/sprints/sprint-{SPRINT_PADDED}.md` (latest non-archived)
+> Design system → `.design/DESIGN-SYSTEM.md`
 
 ---
 
@@ -46,6 +49,8 @@ Never ask the developer to run these commands themselves. Run them directly.
 
 | Item | Value |
 |---|---|
+| Project | {PROJECT_NAME} |
+| Team | {TEAM_NAME} |
 | Backend | Laravel 12, API-only, port 8000 |
 | Frontend | Vue 3 + Vite SPA, port 5173 |
 | Module system | nwidart/laravel-modules (backend) + `resources/js/modules/` (frontend) |
@@ -80,21 +85,19 @@ Never `$request->validate()` inline. Every endpoint has its own Request class.
 
 ### Rule 3 — Business logic in Actions (single-purpose) or Services (stateful)
 ```php
-// Action — one public method, one responsibility
-class CreatePurchaseOrderAction
+class CreateItemAction
 {
-    public function execute(array $data): PurchaseOrder { ... }
+    public function execute(array $data): Item { ... }
 }
 ```
 
 ### Rule 4 — Data access only through Repositories
 ```php
-// Always inject the Interface, never the concrete class
-public function __construct(private PurchaseOrderRepositoryInterface $repo) {}
+public function __construct(private ItemRepositoryInterface $repo) {}
 ```
 
 ### Rule 5 — Migrations live in `database/migrations/` only
-Never inside `Modules/`. The module directory is for app code only.
+Never inside `Modules/`.
 
 ### Rule 6 — Route middleware
 ```php
@@ -103,89 +106,68 @@ Route::middleware('auth:keycloak,sanctum,web')
 
 ### Rule 7 — API response shape
 ```php
-// Always use JsonResource / ResourceCollection
-return new PurchaseOrderResource($order);          // single
-return PurchaseOrderResource::collection($orders); // list
+return new ItemResource($item);
+return ItemResource::collection($items);
 ```
 
 ---
 
 ## Frontend Conventions
 
-### Rule 1 — Module structure (mirror the backend)
+### Rule 1 — Module structure
 ```
 resources/js/modules/{moduleName}/
-├── services/{moduleName}Service.js   ← ALL axios calls — nowhere else
-├── stores/{moduleName}Store.js       ← Pinia store — one per module
+├── services/{moduleName}Service.js   ← ALL axios calls
+├── stores/{moduleName}Store.js       ← Pinia store
 ├── views/{ModuleName}View.vue        ← page component
-├── components/                       ← local-only components
-└── routes.js                         ← route definitions for this module
+├── components/                       ← local components
+└── routes.js                         ← route definitions
 ```
 
 ### Rule 2 — Always use the shared axios instance
 ```js
 import api from '@/plugins/axios'   // ✅
-import axios from 'axios'           // ❌ never
+import axios from 'axios'           // ❌
 ```
 
-### Rule 3 — Composition API only, no Options API
+### Rule 3 — Composition API only
 ```vue
-<script setup>          <!-- ✅ always -->
-<script>                <!-- ❌ never -->
-export default { ... }  <!-- ❌ never -->
+<script setup>  <!-- ✅ always -->
 ```
 
 ### Rule 4 — Service layer owns all API calls
 ```js
-// ✅ correct — in the store
-const res = await purchaseOrderService.index(params)
-
-// ❌ wrong — API call inside a component
-const res = await api.get('/purchase-order')
+// Store calls the service — never call api directly from a component
+const res = await itemService.index(params)
 ```
 
 ### Rule 5 — Register every new module route
-After `module:make`, immediately add to `resources/js/plugins/router/routes.js`:
 ```js
-import purchaseOrderRoutes from '@/modules/purchaseOrder/routes'
-export const routes = [...existingRoutes, ...purchaseOrderRoutes]
+// resources/js/plugins/router/routes.js
+import itemRoutes from '@/modules/item/routes'
+export const routes = [...existing, ...itemRoutes]
 ```
 
 ### Rule 6 — Add nav item for every user-facing module
-In `resources/js/layouts/components/NavItems.vue`:
 ```js
-{ title: 'Purchase Order', icon: 'mdi-file-document', to: '/purchase-order' }
+// resources/js/layouts/components/NavItems.vue
+{ title: 'Item', icon: 'mdi-package', to: '/item' }
 ```
 
 ---
 
 ## Sprint Workflow
 
-### Reading the sprint doc
-Before implementing anything, find the active sprint:
+1. Find the active sprint: latest `.docs/sprints/sprint-XX.md` not in `archive/`
+2. Read the brief before implementing
+3. Implement exactly what the brief describes — nothing more
+4. After completing: tick `[x]` the checklist + commit
+
+**Commit format:**
 ```
-.docs/sprints/sprint-XX.md  (highest number, not in archive/)
-```
-Read the active brief. Implement exactly what the brief describes — nothing more.
-
-### Updating the sprint doc
-After completing each brief item:
-- Tick `[x]` the checklist item
-- Commit: `git commit -m "feat(ModuleName): brief description [sprint-XX brief-YY]"`
-
-### Starting a new brief
-Write a plan first (see `.skills/writing-plans/SKILL.md`).
-Get alignment before writing code.
-
----
-
-## Git Conventions
-
-```
-Branch:  feat/{module-name}-{brief-description}
-Commit:  feat(ModuleName): what was done [sprint-XX brief-YY]
-         fix(ModuleName): what was fixed
-         chore: what was updated
+feat(ModuleName): what was done [sprint-{SPRINT_PADDED} brief-XX]
+fix(ModuleName): what was fixed
+chore: what was updated
 ```
 
 ---
@@ -196,7 +178,7 @@ Commit:  feat(ModuleName): what was done [sprint-XX brief-YY]
 - Call `axios` directly from a Vue component
 - Use Options API (`export default {}`)
 - Put migrations inside `Modules/`
-- Hardcode colours — use CSS tokens from `.design/colors_and_type.css`
+- Hardcode colours — use `.design/colors_and_type.css` tokens
 - Leave `dd()`, `var_dump()`, or `console.log()` in committed code
 - Skip writing the FormRequest for any user input
 - Implement beyond what the current sprint brief specifies
