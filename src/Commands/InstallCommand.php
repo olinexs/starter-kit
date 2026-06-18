@@ -192,6 +192,9 @@ class InstallCommand extends Command
             '.design/DESIGN-SYSTEM.md'                       => 'backend/.design/DESIGN-SYSTEM.md',
             '.design/colors_and_type.css'                    => 'backend/.design/colors_and_type.css',
             'dev-agent.sh'                                   => 'backend/dev-agent.sh',
+            // project root scripts
+            'setup.sh'                                       => 'setup.sh',
+            'setup.bat'                                      => 'setup.bat',
             // frontend — project files
             'frontend/package.json'                          => 'frontend/package.json',
             'frontend/vite.config.js'                        => 'frontend/vite.config.js',
