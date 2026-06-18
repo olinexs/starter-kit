@@ -1,4 +1,4 @@
-# eoads/starter-kit
+# eoads/eoads-starter-kit
 
 > EO-ADS Laravel Starter Kit — full project scaffold with AI-assisted module development.
 
@@ -6,7 +6,7 @@
 
 ```bash
 # 1. Create a new Laravel project with this starter kit
-laravel new myproject --using=eoads/starter-kit
+laravel new myproject --using=eoads/eoads-starter-kit
 
 # 2. Enter the project
 cd myproject
@@ -95,6 +95,6 @@ This starter kit requires and auto-installs:
 ```bash
 laravel new myproject
 cd myproject
-composer require eoads/starter-kit
+composer require eoads/eoads-starter-kit
 php artisan eoads:install
 ```
