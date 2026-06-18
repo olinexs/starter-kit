@@ -28,6 +28,7 @@ class InstallCommand extends Command
 
         $this->publishStubs();
         $this->ensureDirs();
+        $this->installFrontendDependencies();
 
         $this->newLine();
         $this->components->success('EO-ADS Starter Kit installed successfully.');
@@ -140,6 +141,32 @@ class InstallCommand extends Command
         }
     }
 
+    private function installFrontendDependencies(): void
+    {
+        $frontendPath = base_path('../frontend');
+
+        if (! is_dir($frontendPath)) {
+            $this->components->warn('frontend/ directory not found — skipping npm install.');
+            return;
+        }
+
+        if (! file_exists("{$frontendPath}/package.json")) {
+            return;
+        }
+
+        $this->newLine();
+        $this->components->info('Installing frontend dependencies...');
+
+        $command = "cd " . escapeshellarg($frontendPath) . " && npm install";
+        passthru($command, $exitCode);
+
+        if ($exitCode === 0) {
+            $this->components->twoColumnDetail('<fg=green>npm install</>', 'done');
+        } else {
+            $this->components->warn('npm install failed — run it manually in frontend/');
+        }
+    }
+
     // ─── Stub map ─────────────────────────────────────────────────────────────
 
     private function stubMap(): array
@@ -165,7 +192,14 @@ class InstallCommand extends Command
             '.design/DESIGN-SYSTEM.md'                       => 'backend/.design/DESIGN-SYSTEM.md',
             '.design/colors_and_type.css'                    => 'backend/.design/colors_and_type.css',
             'dev-agent.sh'                                   => 'backend/dev-agent.sh',
-            // frontend — base JS files
+            // frontend — project files
+            'frontend/package.json'                          => 'frontend/package.json',
+            'frontend/vite.config.js'                        => 'frontend/vite.config.js',
+            'frontend/index.html'                            => 'frontend/index.html',
+            // frontend — JS source
+            'resources/js/main.js'                           => 'frontend/resources/js/main.js',
+            'resources/js/App.vue'                           => 'frontend/resources/js/App.vue',
+            'resources/js/plugins/vuetify.js'                => 'frontend/resources/js/plugins/vuetify.js',
             'resources/js/plugins/axios.js'                  => 'frontend/resources/js/plugins/axios.js',
             'resources/js/plugins/router/routes.js'          => 'frontend/resources/js/plugins/router/routes.js',
             'resources/js/stores/toastStore.js'              => 'frontend/resources/js/stores/toastStore.js',
