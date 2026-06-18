@@ -78,10 +78,18 @@ Tell Claude: *"I want to create a module for Purchase Orders"* — it scaffolds 
 
 | Path | Purpose |
 |---|---|
+| `package.json` | Vue 3 + Vuetify 3 + Pinia + Axios + Vue Router + Vite |
+| `vite.config.js` | `@` alias → `resources/js/`, proxy `/api` → `localhost:8000` |
+| `index.html` | App entry point |
+| `resources/js/main.js` | App bootstrap — wires Vuetify, Pinia, Router |
+| `resources/js/App.vue` | Root component |
+| `resources/js/plugins/vuetify.js` | Ecogreen Vuetify theme config |
 | `resources/js/plugins/axios.js` | Shared Axios instance with auth interceptors |
 | `resources/js/plugins/router/routes.js` | Root route registry |
 | `resources/js/stores/toastStore.js` | Pinia toast/alert store |
 | `resources/js/layouts/components/NavItems.vue` | Navigation menu |
+
+> `npm install` runs automatically after install.
 
 ---
 
