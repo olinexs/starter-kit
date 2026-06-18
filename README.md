@@ -2,16 +2,20 @@
 
 > EO-ADS Laravel Starter Kit — full project scaffold with AI-assisted module development.
 
-## Onboarding in 3 steps
+## Onboarding in 4 steps
 
 ```bash
-# 1. Create a new Laravel project with this starter kit
-laravel new myproject --using=eoads/eoads-starter-kit
+# 1. Create a new Laravel project
+laravel new myproject
 
-# 2. Enter the project
+# 2. Enter the project and require the starter kit
 cd myproject
+composer require eoads/eoads-starter-kit
 
-# 3. Open in Claude Code — you're ready
+# 3. Run the interactive installer
+php artisan eoads:install
+
+# 4. Open in Claude Code — you're ready
 claude .
 ```
 
@@ -90,11 +94,9 @@ This starter kit requires and auto-installs:
 
 ---
 
-## Manual install (without `laravel new --using`)
+## Upgrading an existing project
 
 ```bash
-laravel new myproject
-cd myproject
-composer require eoads/eoads-starter-kit
-php artisan eoads:install
+composer update eoads/eoads-starter-kit
+php artisan eoads:install --force
 ```
