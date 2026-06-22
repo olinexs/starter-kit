@@ -23,6 +23,28 @@ my-project/
 
 ---
 
+## Quick start (one command)
+
+For a brand-new project from scratch, use the bootstrap script — it prompts for a
+project name, then creates the Laravel backend, installs the starter kit, and
+scaffolds the frontend (with `npm install`) automatically.
+
+```bash
+# macOS / Linux / Git-Bash
+./create-project.sh
+```
+```bat
+:: Windows
+create-project.bat
+```
+
+> Requires PHP, Composer, the `laravel` installer, and Node/npm on your machine.
+> The result is `my-project/backend/` + `my-project/frontend/`, ready to run.
+
+For the manual step-by-step flow, see **Installation** below.
+
+---
+
 ## Installation
 
 ```bash
