@@ -66,6 +66,10 @@ The installer will ask for:
 - Project name & description
 - Team / department name
 - First sprint number, title, PIC, and ETC
+- **Frontend template** (discovered from the kit's bundled templates)
+- **JavaScript or TypeScript**
+- **Version** — Starter Kit or Full
+- **Authentication system** — Local (Sanctum), LDAP (Active Directory), or Keycloak (SSO)
 
 Then open the **project root** in Claude Code:
 
@@ -98,6 +102,12 @@ Tell Claude: *"I want to create a module for Purchase Orders"* — it scaffolds 
 
 ### Frontend (`frontend/`)
 
+> The exact file set depends on the **template**, **JS/TS**, and **auth** options
+> chosen during install. The table below shows the core working files common to
+> the default Vue + Vuetify template; the selected auth adds login pages and an
+> auth module, and the full template source is parked under
+> `resources/js/.template/` as read-only AI reference.
+
 | Path | Purpose |
 |---|---|
 | `package.json` | Vue 3 + Vuetify 3 + Pinia + Axios + Vue Router + Vite |
@@ -106,10 +116,10 @@ Tell Claude: *"I want to create a module for Purchase Orders"* — it scaffolds 
 | `resources/js/main.js` | App bootstrap — wires Vuetify, Pinia, Router |
 | `resources/js/App.vue` | Root component |
 | `resources/js/plugins/vuetify.js` | Ecogreen Vuetify theme config |
-| `resources/js/plugins/axios.js` | Shared Axios instance with auth interceptors |
+| `resources/js/plugins/axios.js` | Shared Axios instance (`export { api }`) with auth interceptors |
 | `resources/js/plugins/router/routes.js` | Root route registry |
 | `resources/js/stores/toastStore.js` | Pinia toast/alert store |
-| `resources/js/layouts/components/NavItems.vue` | Navigation menu |
+| `resources/js/layouts/DefaultLayout.vue` | App shell + navigation (`navItems`) |
 
 > `npm install` runs automatically after install.
 
@@ -153,7 +163,7 @@ Runs: php artisan module:make Inventory  (from backend/)
 Backend:  Controller, FormRequest, Action, Repository, ServiceProvider, routes
 Frontend: Service, Pinia store, Vue view, routes.js
        ↓
-Wires: route import in router/routes.js + nav item in NavItems.vue
+Wires: route import in router/routes.js + nav item in DefaultLayout.vue
        ↓
 Commits: feat(Inventory): scaffold module [sprint-XX brief-XX]
 ```
