@@ -3,17 +3,23 @@
 namespace Eoads\StarterKit\Commands;
 
 use Illuminate\Console\Command;
+use ZipArchive;
 
 class InstallCommand extends Command
 {
     protected $signature = 'eoads:install
                             {--force : Overwrite existing files}';
 
-    protected $description = 'Install the EO-ADS starter kit — scaffolds all project structure, docs, and AI context files';
+    protected $description = 'Install the EOADS starter kit — scaffolds project structure, docs, AI context, frontend template, and auth system';
 
     private string $stubsPath;
     private bool   $force;
     private array  $vars = [];
+
+    private array  $selectedTemplate = [];
+    private string $lang             = 'js';
+    private string $version          = 'starter-kit';
+    private string $auth             = 'local';
 
     public function handle(): int
     {
@@ -26,32 +32,42 @@ class InstallCommand extends Command
         $this->collectProjectInfo();
         $this->newLine();
 
-        $this->publishStubs();
-        $this->ensureDirs();
-        $this->installFrontendDependencies();
+        $this->selectTemplate();
+        $this->newLine();
+
+        $this->selectAuth();
+        $this->newLine();
+
+        $this->publishCommonStubs();
+        $this->publishAuthStubs();
+        $this->publishAuthModule();
+        $this->extractFrontendTemplate();
+        $this->publishAuthFrontend();
+        $this->ensureBackendDirs();
 
         $this->newLine();
         $this->components->success('EO-ADS Starter Kit installed successfully.');
         $this->newLine();
 
-        $this->components->twoColumnDetail('<fg=green>Project</>',      $this->vars['PROJECT_NAME']);
-        $this->components->twoColumnDetail('<fg=green>Team</>',         $this->vars['TEAM_NAME']);
-        $this->components->twoColumnDetail('<fg=green>module:make</>',  'available — use AI or run directly');
-        $this->components->twoColumnDetail('<fg=green>CLAUDE.md</>',    'backend/.claude/CLAUDE.md');
+        $this->components->twoColumnDetail('<fg=green>Project</>',    $this->vars['PROJECT_NAME']);
+        $this->components->twoColumnDetail('<fg=green>Team</>',       $this->vars['TEAM_NAME']);
+        $this->components->twoColumnDetail('<fg=green>Template</>',   $this->selectedTemplate['name'] . ' · ' . strtoupper($this->lang) . ' · ' . $this->version);
+        $this->components->twoColumnDetail('<fg=green>Auth</>',       strtoupper($this->auth));
+        $this->components->twoColumnDetail('<fg=green>CLAUDE.md</>',  'backend/.claude/CLAUDE.md');
         $this->components->twoColumnDetail('<fg=green>Architecture</>', 'backend/.docs/ARCHITECTURE.md');
-        $this->components->twoColumnDetail('<fg=green>Sprint 01</>',    'backend/.docs/sprints/sprint-01.md');
-        $this->components->twoColumnDetail('<fg=green>Design</>',       'backend/.design/DESIGN-SYSTEM.md');
+        $this->components->twoColumnDetail('<fg=green>Sprint 01</>',  'backend/.docs/sprints/sprint-01.md');
+        $this->components->twoColumnDetail('<fg=green>Design</>',     'backend/.design/DESIGN-SYSTEM.md');
 
         $this->newLine();
         $this->line('  <fg=cyan>Structure:</>');
         $this->line('  project-root/');
         $this->line('  ├── backend/   ← Laravel app (you are here)');
-        $this->line('  └── frontend/  ← Vue SPA');
+        $this->line('  └── frontend/  ← ' . $this->selectedTemplate['name'] . ' SPA');
         $this->newLine();
-        $this->line('  <fg=cyan>Onboarding steps:</>');
-        $this->line('  1. Open the project root in Claude Code: <comment>claude ..</comment>');
-        $this->line('  2. Say: <comment>"I want to create a module for [your feature]"</comment>');
-        $this->line('  3. The AI scaffolds backend + frontend together.');
+        $this->line('  <fg=cyan>Next steps:</>');
+        $this->line('  1. Open project root in Claude Code: <comment>claude ..</comment>');
+        $this->line('  2. Fill in <comment>backend/.env</comment> and run <comment>php artisan migrate</comment>');
+        $this->line('  3. Say: <comment>"I want to create a module for [your feature]"</comment>');
         $this->newLine();
         $this->line('  <fg=cyan>Or scaffold manually:</>');
         $this->line('  <comment>php artisan module:make YourModuleName</comment>');
@@ -66,35 +82,397 @@ class InstallCommand extends Command
         $appName = config('app.name', 'My App');
 
         $this->vars = [
-            'PROJECT_NAME'    => $this->ask('Project name', $appName),
-            'PROJECT_DESC'    => $this->ask('Project description', 'EO-ADS application'),
-            'TEAM_NAME'       => $this->ask('Team / department name', 'A&D Department'),
-            'SPRINT_NUMBER'   => $this->ask('First sprint number', '01'),
-            'SPRINT_TITLE'    => $this->ask('First sprint title', 'Foundation & Auth'),
-            'SPRINT_PIC'      => $this->ask('Sprint PIC (person in charge)', '—'),
-            'SPRINT_ETC'      => $this->ask('Sprint ETC (estimated completion)', '—'),
-            'YEAR'            => date('Y'),
+            'PROJECT_NAME'  => $this->ask('Project name', $appName),
+            'PROJECT_DESC'  => $this->ask('Project description', 'EO-ADS application'),
+            'TEAM_NAME'     => $this->ask('Team / department name', 'A&D Department'),
+            'SPRINT_NUMBER' => $this->ask('First sprint number', '01'),
+            'SPRINT_TITLE'  => $this->ask('First sprint title', 'Foundation & Auth'),
+            'SPRINT_PIC'    => $this->ask('Sprint PIC (person in charge)', '—'),
+            'SPRINT_ETC'    => $this->ask('Sprint ETC (estimated completion)', '—'),
+            'YEAR'          => date('Y'),
         ];
 
         $this->vars['SPRINT_PADDED'] = str_pad($this->vars['SPRINT_NUMBER'], 2, '0', STR_PAD_LEFT);
     }
 
-    // ─── Publish stubs ────────────────────────────────────────────────────────
+    // ─── Template selection ───────────────────────────────────────────────────
 
-    private function publishStubs(): void
+    private function selectTemplate(): void
     {
-        foreach ($this->stubMap() as $stub => $destination) {
-            $src  = "{$this->stubsPath}/{$stub}";
-            // destination is relative to project root (one level above backend/)
-            $dest = base_path("../{$destination}");
+        $templates = $this->discoverTemplates();
 
-            if (! file_exists($src)) {
-                $this->components->warn("Stub not found: {$stub}");
+        if (empty($templates)) {
+            $this->components->warn('No templates found in stubs/templates/ — skipping frontend.');
+            $this->selectedTemplate = ['key' => '', 'name' => 'None', 'zip' => '', 'versions' => []];
+            return;
+        }
+
+        // Step 1 — pick template
+        $labels  = array_map(fn ($t) => $t['name'] . ' — ' . $t['description'], $templates);
+        $chosen  = $this->choice('Which frontend template?', $labels, 0);
+        $index   = array_search($chosen, $labels);
+        $this->selectedTemplate = $templates[$index];
+
+        // Step 2 — JS or TS
+        $this->lang = strtolower($this->choice('JavaScript or TypeScript?', ['JavaScript', 'TypeScript'], 0));
+        $this->lang = $this->lang === 'typescript' ? 'ts' : 'js';
+
+        // Step 3 — Starter Kit or Full Version
+        $versions     = $this->selectedTemplate['versions'] ?? [];
+        $versionKeys  = array_keys($versions);
+        $versionLabels = array_map(fn ($k) => $versions[$k]['label'] ?? $k, $versionKeys);
+
+        $chosenVersion  = $this->choice('Which version?', $versionLabels, 0);
+        $versionIndex   = array_search($chosenVersion, $versionLabels);
+        $this->version  = $versionKeys[$versionIndex];
+
+        $this->vars['LANG']     = $this->lang;
+        $this->vars['VERSION']  = $this->version;
+
+        $this->components->twoColumnDetail('<fg=cyan>Template</>', $this->selectedTemplate['name'] . ' · ' . strtoupper($this->lang) . ' · ' . $this->version);
+    }
+
+    private function discoverTemplates(): array
+    {
+        $dir = $this->stubsPath . '/templates';
+
+        if (! is_dir($dir)) {
+            return [];
+        }
+
+        $templates = [];
+
+        foreach (scandir($dir) as $entry) {
+            if ($entry === '.' || $entry === '..') {
                 continue;
             }
 
-            if (file_exists($dest) && ! $this->force) {
-                $this->components->twoColumnDetail("<fg=yellow>SKIP</>  {$destination}", 'already exists');
+            $manifest = $dir . '/' . $entry . '/template.json';
+
+            if (! file_exists($manifest)) {
+                continue;
+            }
+
+            $data = json_decode(file_get_contents($manifest), true);
+
+            if (! $data || empty($data['name'])) {
+                continue;
+            }
+
+            $templates[] = array_merge($data, ['key' => $entry]);
+        }
+
+        return $templates;
+    }
+
+    // ─── Auth selection ───────────────────────────────────────────────────────
+
+    private function selectAuth(): void
+    {
+        $options = [
+            'local'     => 'Local (Laravel Sanctum — email + password)',
+            'ldap'      => 'LDAP (Active Directory)',
+            'keycloak'  => 'Keycloak (SSO)',
+        ];
+
+        $labels     = array_values($options);
+        $keys       = array_keys($options);
+        $chosen     = $this->choice('Which authentication system?', $labels, 0);
+        $this->auth = $keys[array_search($chosen, $labels)];
+
+        $this->vars['AUTH'] = strtoupper($this->auth);
+
+        // Auth-derived placeholders for docs/templates.
+        $authMeta = [
+            'local' => [
+                'label'      => 'Local (Laravel Sanctum — email + password)',
+                'middleware' => 'auth:sanctum',
+            ],
+            'ldap' => [
+                'label'      => 'LDAP (Active Directory) + Sanctum tokens',
+                'middleware' => 'auth:sanctum',
+            ],
+            'keycloak' => [
+                'label'      => 'Keycloak (SSO) + Sanctum tokens',
+                'middleware' => 'auth:sanctum',
+            ],
+        ];
+
+        $this->vars['AUTH_LABEL']      = $authMeta[$this->auth]['label'];
+        $this->vars['AUTH_MIDDLEWARE'] = $authMeta[$this->auth]['middleware'];
+
+        $this->components->twoColumnDetail('<fg=cyan>Auth</>', $options[$this->auth]);
+    }
+
+    // ─── Publish common stubs ─────────────────────────────────────────────────
+
+    private function publishCommonStubs(): void
+    {
+        $sprintPadded = $this->vars['SPRINT_PADDED'];
+
+        $map = [
+            'common/.claude/CLAUDE.md'                               => 'backend/.claude/CLAUDE.md',
+            'common/.claude/settings.local.json'                     => 'backend/.claude/settings.local.json',
+            'common/AGENTS.md'                                       => 'backend/AGENTS.md',
+            'common/.docs/ARCHITECTURE.md'                           => 'backend/.docs/ARCHITECTURE.md',
+            'common/.docs/TEMPLATE-ADAPTATION.md'                    => 'backend/.docs/TEMPLATE-ADAPTATION.md',
+            'common/.docs/app-blueprint.md'                          => 'backend/.docs/app-blueprint.md',
+            'common/.docs/sprints/sprint-roadmap.md'                 => 'backend/.docs/sprints/sprint-roadmap.md',
+            'common/.docs/sprints/sprint-01.md'                      => "backend/.docs/sprints/sprint-{$sprintPadded}.md",
+            'common/.skills/test-driven-development/SKILL.md'        => 'backend/.skills/test-driven-development/SKILL.md',
+            'common/.skills/systematic-debugging/SKILL.md'           => 'backend/.skills/systematic-debugging/SKILL.md',
+            'common/.skills/writing-plans/SKILL.md'                  => 'backend/.skills/writing-plans/SKILL.md',
+            'common/.skills/verification-before-completion/SKILL.md' => 'backend/.skills/verification-before-completion/SKILL.md',
+            'common/.design/README.md'                               => 'backend/.design/README.md',
+            'common/.design/SKILL.md'                                => 'backend/.design/SKILL.md',
+            'common/.design/DESIGN-SYSTEM.md'                        => 'backend/.design/DESIGN-SYSTEM.md',
+            'common/.design/colors_and_type.css'                     => 'backend/.design/colors_and_type.css',
+            'common/dev-agent.sh'                                    => 'backend/dev-agent.sh',
+            'common/setup.sh'                                        => 'setup.sh',
+            'common/setup.bat'                                       => 'setup.bat',
+        ];
+
+        foreach ($map as $stub => $destination) {
+            $this->publishFile($stub, $destination);
+        }
+    }
+
+    // ─── Publish auth stubs ───────────────────────────────────────────────────
+
+    private function publishAuthStubs(): void
+    {
+        $authDir = $this->stubsPath . '/auth/' . $this->auth;
+
+        if (! is_dir($authDir)) {
+            $this->components->warn("Auth stubs not found for: {$this->auth}");
+            return;
+        }
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($authDir, \RecursiveDirectoryIterator::SKIP_DOTS)
+        );
+
+        foreach ($iterator as $file) {
+            $relativePath = ltrim(str_replace($authDir, '', $file->getPathname()), '/\\');
+            $relativePath = str_replace('\\', '/', $relativePath);
+
+            // Modules/ and frontend/ are published by dedicated methods.
+            if (strpos($relativePath, 'Modules/') === 0 || strpos($relativePath, 'frontend/') === 0) {
+                continue;
+            }
+
+            $stub        = 'auth/' . $this->auth . '/' . $relativePath;
+            $destination = 'backend/' . $relativePath;
+
+            $this->publishFile($stub, $destination);
+        }
+    }
+
+    // ─── Publish Auth module ──────────────────────────────────────────────────
+
+    private function publishAuthModule(): void
+    {
+        $moduleDir = $this->stubsPath . '/auth/' . $this->auth . '/Modules/Auth';
+
+        if (! is_dir($moduleDir)) {
+            $this->components->warn("Auth module stubs not found for: {$this->auth}");
+            return;
+        }
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($moduleDir, \RecursiveDirectoryIterator::SKIP_DOTS)
+        );
+
+        foreach ($iterator as $file) {
+            $relative    = ltrim(str_replace($moduleDir, '', $file->getPathname()), '/\\');
+            $relative    = str_replace('\\', '/', $relative);
+            $stub        = 'auth/' . $this->auth . '/Modules/Auth/' . $relative;
+            $destination = 'backend/Modules/Auth/' . $relative;
+
+            $this->publishFile($stub, $destination);
+        }
+
+        // Register in backend composer.json autoload
+        $this->registerAuthModuleNamespace();
+    }
+
+    private function registerAuthModuleNamespace(): void
+    {
+        $composerPath = base_path('../backend/composer.json');
+
+        if (! file_exists($composerPath)) {
+            return;
+        }
+
+        $composer = json_decode(file_get_contents($composerPath), true);
+
+        if (! is_array($composer)) {
+            return;
+        }
+
+        $key  = 'Modules\\Auth\\';
+        $val  = 'Modules/Auth/app/';
+        $psr4 = $composer['autoload']['psr-4'] ?? [];
+
+        if (isset($psr4[$key])) {
+            return;
+        }
+
+        $composer['autoload']['psr-4'][$key] = $val;
+
+        file_put_contents(
+            $composerPath,
+            json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n"
+        );
+
+        $this->components->twoColumnDetail('<fg=green>UPDATE</> backend/composer.json', 'Auth namespace registered');
+    }
+
+    // ─── Publish auth-specific frontend (login page + auth module) ─────────────
+
+    private function publishAuthFrontend(): void
+    {
+        $authFrontend = $this->stubsPath . '/auth/' . $this->auth . '/frontend';
+
+        if (! is_dir($authFrontend)) {
+            return;
+        }
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($authFrontend, \RecursiveDirectoryIterator::SKIP_DOTS)
+        );
+
+        foreach ($iterator as $file) {
+            $relative = ltrim(str_replace($authFrontend, '', $file->getPathname()), '/\\');
+            $relative = str_replace('\\', '/', $relative);
+
+            $stub        = 'auth/' . $this->auth . '/frontend/' . $relative;
+            $destination = 'frontend/' . $relative;
+
+            $this->publishFile($stub, $destination);
+        }
+
+        if ($this->auth === 'keycloak') {
+            $this->appendKeycloakFrontendEnv();
+        }
+    }
+
+    private function appendKeycloakFrontendEnv(): void
+    {
+        $block = <<<'ENV'
+
+# ─── Keycloak (SSO) ───────────────────────────────────────────────
+VITE_KEYCLOAK_URL=https://keycloak.example.com
+VITE_KEYCLOAK_REALM=my-realm
+VITE_KEYCLOAK_CLIENT_ID=my-spa-client
+VITE_KEYCLOAK_REDIRECT_URI=http://localhost:5173/login
+ENV;
+
+        foreach (['frontend/.env.example', 'frontend/.env'] as $relative) {
+            $path = base_path('../' . $relative);
+
+            if (! file_exists($path)) {
+                continue;
+            }
+
+            if (strpos(file_get_contents($path), 'VITE_KEYCLOAK_URL') !== false) {
+                continue; // already present
+            }
+
+            file_put_contents($path, rtrim(file_get_contents($path)) . "\n" . $block . "\n");
+            $this->components->twoColumnDetail("<fg=green>UPDATE</> {$relative}", 'Keycloak vars appended');
+        }
+    }
+
+    // ─── Extract frontend template from zip ───────────────────────────────────
+
+    /**
+     * Folders inside the template's src/ that are USABLE infrastructure.
+     * These are extracted to frontend/resources/js/<folder>/ and used directly.
+     */
+    private array $usableSrcDirs = [
+        '@core',
+        '@layouts',
+        'assets',
+        'navigation',
+        'composables',
+    ];
+
+    /**
+     * Plugins (relative to src/plugins/) that are USABLE — extracted to
+     * resources/js/plugins/ and auto-registered by @core/utils/plugins.js.
+     * The file-based router (1.router/) is deliberately excluded; our own
+     * router plugin (from common stubs) replaces it.
+     */
+    private array $usablePlugins = [
+        '2.pinia.js',
+        'vuetify',
+        'iconify',
+        'layouts.js',
+        'webfontloader.js',
+    ];
+
+    private function extractFrontendTemplate(): void
+    {
+        $tKey = $this->selectedTemplate['key'] ?? '';
+
+        if ($tKey === '') {
+            return;
+        }
+
+        $zipFile = $this->stubsPath . '/templates/' . $tKey . '/' . ($this->selectedTemplate['zip'] ?? '');
+
+        if (! file_exists($zipFile)) {
+            $this->components->warn("Template zip not found: {$zipFile}");
+            return;
+        }
+
+        $versions  = $this->selectedTemplate['versions'] ?? [];
+        $langPath  = $versions[$this->version][$this->lang] ?? null;
+
+        if (! $langPath) {
+            $this->components->warn("No path defined for version={$this->version}, lang={$this->lang}");
+            return;
+        }
+
+        $frontendDest = base_path('../frontend');
+        $jsDest       = $frontendDest . '/resources/js';
+
+        foreach ([$frontendDest, $jsDest, $jsDest . '/.template'] as $d) {
+            if (! is_dir($d)) {
+                mkdir($d, 0755, true);
+            }
+        }
+
+        $this->newLine();
+        $this->components->info('Extracting frontend template...');
+
+        $zip = new ZipArchive();
+
+        if ($zip->open($zipFile) !== true) {
+            $this->components->error("Could not open zip: {$zipFile}");
+            return;
+        }
+
+        $prefix = rtrim($langPath, '/') . '/';
+        $stats  = ['root' => 0, 'core' => 0, 'template' => 0];
+
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = $zip->getNameIndex($i);
+
+            if (strpos($name, $prefix) !== 0) {
+                continue;
+            }
+
+            $relative = substr($name, strlen($prefix));
+
+            if ($relative === '' || substr($relative, -1) === '/') {
+                continue; // skip directory entries
+            }
+
+            $dest = $this->resolveFrontendTarget($relative, $frontendDest, $jsDest, $stats);
+
+            if ($dest === null) {
                 continue;
             }
 
@@ -103,33 +481,171 @@ class InstallCommand extends Command
                 mkdir($dir, 0755, true);
             }
 
-            $content = file_get_contents($src);
-            $content = $this->replacePlaceholders($content);
+            if (file_exists($dest) && ! $this->force) {
+                continue;
+            }
 
-            file_put_contents($dest, $content);
-            $this->components->twoColumnDetail("<fg=green>CREATE</> {$destination}", 'done');
+            file_put_contents($dest, $zip->getFromIndex($i));
+        }
+
+        $zip->close();
+
+        $this->components->twoColumnDetail('<fg=green>EXTRACT</> frontend/ (root)',           "{$stats['root']} files");
+        $this->components->twoColumnDetail('<fg=green>EXTRACT</> resources/js/ (usable core)', "{$stats['core']} files");
+        $this->components->twoColumnDetail('<fg=green>EXTRACT</> resources/js/.template/ (ref)', "{$stats['template']} files");
+
+        // Overlay our working stubs (overrides template defaults).
+        $this->publishFrontendStubs($tKey);
+
+        $this->installFrontendDependencies($frontendDest);
+    }
+
+    /**
+     * Decide where a zip entry (path relative to the version root) lands:
+     *   - non-src/ files                  → frontend/                 (root)
+     *   - src/<usableSrcDir>/...          → resources/js/<dir>/...    (core)
+     *   - src/plugins/<usablePlugin>      → resources/js/plugins/...  (core)
+     *   - everything else under src/      → resources/js/.template/   (reference)
+     * Returns the absolute destination path, or null to skip.
+     */
+    private function resolveFrontendTarget(string $relative, string $frontendDest, string $jsDest, array &$stats): ?string
+    {
+        $relative = str_replace('\\', '/', $relative);
+
+        // Root-level files (not under src/) → frontend/ root, verbatim.
+        if (strpos($relative, 'src/') !== 0) {
+            $stats['root']++;
+            return $frontendDest . '/' . $relative;
+        }
+
+        $inner = substr($relative, strlen('src/')); // path inside src/
+
+        // Usable core folders → resources/js/<folder>/...
+        foreach ($this->usableSrcDirs as $dir) {
+            if ($inner === $dir || strpos($inner, $dir . '/') === 0) {
+                $stats['core']++;
+                return $jsDest . '/' . $inner;
+            }
+        }
+
+        // Usable plugins → resources/js/plugins/... (router excluded).
+        if (strpos($inner, 'plugins/') === 0) {
+            $pluginPath = substr($inner, strlen('plugins/'));
+            $segment    = explode('/', $pluginPath)[0];
+
+            if (in_array($segment, $this->usablePlugins, true)) {
+                $stats['core']++;
+                return $jsDest . '/plugins/' . $pluginPath;
+            }
+        }
+
+        // Everything else under src/ → read-only AI reference.
+        $stats['template']++;
+        return $jsDest . '/.template/' . $inner;
+    }
+
+    /**
+     * Overlay working frontend code on top of the extracted template:
+     *   - common/frontend/** (main.js, App.vue, plugins/router, plugins/axios,
+     *     stores, layouts) — our hand-written working code
+     *   - templates/<key>/vite.config.js + index.html — remapped to resources/js
+     */
+    private function publishFrontendStubs(string $tKey): void
+    {
+        $commonFrontend = $this->stubsPath . '/common/frontend';
+
+        if (is_dir($commonFrontend)) {
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($commonFrontend, \RecursiveDirectoryIterator::SKIP_DOTS)
+            );
+
+            foreach ($iterator as $file) {
+                $relative = ltrim(str_replace($commonFrontend, '', $file->getPathname()), '/\\');
+                $relative = str_replace('\\', '/', $relative);
+
+                $this->publishFile('common/frontend/' . $relative, 'frontend/' . $relative);
+            }
+        }
+
+        // Template-specific root overrides.
+        foreach (['vite.config.js', 'index.html'] as $rootFile) {
+            $stub = "templates/{$tKey}/{$rootFile}";
+            if (file_exists("{$this->stubsPath}/{$stub}")) {
+                $this->publishFile($stub, "frontend/{$rootFile}");
+            }
+        }
+
+        // Write the .template/ guide for AI agents.
+        $this->writeTemplateReadme();
+    }
+
+    private function writeTemplateReadme(): void
+    {
+        $dest = base_path('../frontend/resources/js/.template/README.md');
+
+        if (file_exists($dest) && ! $this->force) {
+            return;
+        }
+
+        $content = <<<'MD'
+# .template/ — Read-Only AI Reference
+
+This folder holds the **original** template source (pages, components, views,
+layouts, stores, the file-based router, etc.) extracted from the vendor theme.
+
+## Rules
+
+- **Do NOT import from `.template/` in working code.** It is reference only.
+- **Do NOT edit files here.** Treat it as read-only documentation.
+- When building a feature, **copy the relevant pattern** out of `.template/`
+  into the working tree (`resources/js/modules/`, `resources/js/pages/`, etc.),
+  then adapt it.
+
+## Where working code lives
+
+| Concern        | Working location                          |
+|----------------|-------------------------------------------|
+| Entry point    | `resources/js/main.js`                    |
+| Router         | `resources/js/plugins/router/`            |
+| HTTP client    | `resources/js/plugins/axios.js`           |
+| Feature module | `resources/js/modules/<name>/`            |
+| Shared core    | `resources/js/@core/`, `@layouts/`        |
+
+The vendor `@core/` and `@layouts/` are usable directly — only the demo
+content (pages/components/views) is parked here for reference.
+MD;
+
+        file_put_contents($dest, $content . "\n");
+        $this->components->twoColumnDetail('<fg=green>CREATE</> resources/js/.template/README.md', 'done');
+    }
+
+    private function installFrontendDependencies(string $frontendPath): void
+    {
+        if (! file_exists("{$frontendPath}/package.json")) {
+            return;
+        }
+
+        $this->newLine();
+        $this->components->info('Installing frontend dependencies...');
+
+        $command = 'cd ' . escapeshellarg($frontendPath) . ' && npm install';
+        passthru($command, $exitCode);
+
+        if ($exitCode === 0) {
+            $this->components->twoColumnDetail('<fg=green>npm install</>', 'done');
+        } else {
+            $this->components->warn('npm install failed — run it manually in frontend/');
         }
     }
 
-    private function replacePlaceholders(string $content): string
-    {
-        $search  = array_map(fn ($k) => "{{$k}}", array_keys($this->vars));
-        $replace = array_values($this->vars);
-        return str_replace($search, $replace, $content);
-    }
+    // ─── Ensure backend directories exist ────────────────────────────────────
 
-    private function ensureDirs(): void
+    private function ensureBackendDirs(): void
     {
         $dirs = [
-            // backend dirs (relative to project root)
             'backend/.docs/sprints/archive',
             'backend/.design/assets',
             'backend/.design/preview',
-            // frontend dirs
-            'frontend/resources/js/modules',
-            'frontend/resources/js/plugins/router',
-            'frontend/resources/js/stores',
-            'frontend/resources/js/layouts/components',
         ];
 
         foreach ($dirs as $dir) {
@@ -141,72 +657,39 @@ class InstallCommand extends Command
         }
     }
 
-    private function installFrontendDependencies(): void
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    private function publishFile(string $stub, string $destination): void
     {
-        $frontendPath = base_path('../frontend');
+        $src  = "{$this->stubsPath}/{$stub}";
+        $dest = base_path("../{$destination}");
 
-        if (! is_dir($frontendPath)) {
-            $this->components->warn('frontend/ directory not found — skipping npm install.');
+        if (! file_exists($src)) {
+            $this->components->warn("Stub not found: {$stub}");
             return;
         }
 
-        if (! file_exists("{$frontendPath}/package.json")) {
+        if (file_exists($dest) && ! $this->force) {
+            $this->components->twoColumnDetail("<fg=yellow>SKIP</>  {$destination}", 'already exists');
             return;
         }
 
-        $this->newLine();
-        $this->components->info('Installing frontend dependencies...');
-
-        $command = "cd " . escapeshellarg($frontendPath) . " && npm install";
-        passthru($command, $exitCode);
-
-        if ($exitCode === 0) {
-            $this->components->twoColumnDetail('<fg=green>npm install</>', 'done');
-        } else {
-            $this->components->warn('npm install failed — run it manually in frontend/');
+        $dir = dirname($dest);
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
         }
+
+        $content = file_get_contents($src);
+        $content = $this->replacePlaceholders($content);
+
+        file_put_contents($dest, $content);
+        $this->components->twoColumnDetail("<fg=green>CREATE</> {$destination}", 'done');
     }
 
-    // ─── Stub map ─────────────────────────────────────────────────────────────
-
-    private function stubMap(): array
+    private function replacePlaceholders(string $content): string
     {
-        $sprintPadded = str_pad($this->vars['SPRINT_NUMBER'], 2, '0', STR_PAD_LEFT);
-
-        return [
-            // backend — docs, AI context, design
-            '.claude/CLAUDE.md'                               => 'backend/.claude/CLAUDE.md',
-            '.claude/settings.local.json'                    => 'backend/.claude/settings.local.json',
-            'AGENTS.md'                                      => 'backend/AGENTS.md',
-            '.docs/ARCHITECTURE.md'                          => 'backend/.docs/ARCHITECTURE.md',
-            '.docs/TEMPLATE-ADAPTATION.md'                   => 'backend/.docs/TEMPLATE-ADAPTATION.md',
-            '.docs/app-blueprint.md'                         => 'backend/.docs/app-blueprint.md',
-            '.docs/sprints/sprint-roadmap.md'                => 'backend/.docs/sprints/sprint-roadmap.md',
-            '.docs/sprints/sprint-01.md'                     => "backend/.docs/sprints/sprint-{$sprintPadded}.md",
-            '.skills/test-driven-development/SKILL.md'       => 'backend/.skills/test-driven-development/SKILL.md',
-            '.skills/systematic-debugging/SKILL.md'          => 'backend/.skills/systematic-debugging/SKILL.md',
-            '.skills/writing-plans/SKILL.md'                 => 'backend/.skills/writing-plans/SKILL.md',
-            '.skills/verification-before-completion/SKILL.md'=> 'backend/.skills/verification-before-completion/SKILL.md',
-            '.design/README.md'                              => 'backend/.design/README.md',
-            '.design/SKILL.md'                               => 'backend/.design/SKILL.md',
-            '.design/DESIGN-SYSTEM.md'                       => 'backend/.design/DESIGN-SYSTEM.md',
-            '.design/colors_and_type.css'                    => 'backend/.design/colors_and_type.css',
-            'dev-agent.sh'                                   => 'backend/dev-agent.sh',
-            // project root scripts
-            'setup.sh'                                       => 'setup.sh',
-            'setup.bat'                                      => 'setup.bat',
-            // frontend — project files
-            'frontend/package.json'                          => 'frontend/package.json',
-            'frontend/vite.config.js'                        => 'frontend/vite.config.js',
-            'frontend/index.html'                            => 'frontend/index.html',
-            // frontend — JS source
-            'resources/js/main.js'                           => 'frontend/resources/js/main.js',
-            'resources/js/App.vue'                           => 'frontend/resources/js/App.vue',
-            'resources/js/plugins/vuetify.js'                => 'frontend/resources/js/plugins/vuetify.js',
-            'resources/js/plugins/axios.js'                  => 'frontend/resources/js/plugins/axios.js',
-            'resources/js/plugins/router/routes.js'          => 'frontend/resources/js/plugins/router/routes.js',
-            'resources/js/stores/toastStore.js'              => 'frontend/resources/js/stores/toastStore.js',
-            'resources/js/layouts/components/NavItems.vue'   => 'frontend/resources/js/layouts/components/NavItems.vue',
-        ];
+        $search  = array_map(fn ($k) => "{{$k}}", array_keys($this->vars));
+        $replace = array_values($this->vars);
+        return str_replace($search, $replace, $content);
     }
 }

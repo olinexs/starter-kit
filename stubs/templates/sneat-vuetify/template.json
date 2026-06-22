@@ -1,0 +1,18 @@
+{
+    "name": "Sneat Vuetify",
+    "description": "Vue 3 + Vuetify 3 admin template by ThemeSelection",
+    "framework": "vue",
+    "zip": "sneat-vuetify-vuejs-admin-template-v2.3.0.zip",
+    "versions": {
+        "starter-kit": {
+            "label": "Starter Kit (recommended — clean slate, AI builds modules)",
+            "js": "javascript-version/starter-kit",
+            "ts": "typescript-version/starter-kit"
+        },
+        "full-version": {
+            "label": "Full Version (all demo pages included)",
+            "js": "javascript-version/full-version",
+            "ts": "typescript-version/full-version"
+        }
+    }
+}

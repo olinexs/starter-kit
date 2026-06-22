@@ -1,0 +1,58 @@
+/* Ecogreen Design Tokens — import in main.js or use via Vuetify theme */
+:root {
+  /* ── Brand colours ── */
+  --eo-primary:           #4CAF50;
+  --eo-primary-dark:      #2E7D32;
+  --eo-primary-light:     #81C784;
+  --eo-primary-surface:   #E8F5E9;
+
+  /* ── Semantic ── */
+  --eo-secondary:         #607D8B;
+  --eo-accent:            #FF9800;
+  --eo-error:             #F44336;
+  --eo-error-surface:     #FFEBEE;
+  --eo-warning:           #FF9800;
+  --eo-warning-surface:   #FFF3E0;
+  --eo-info:              #2196F3;
+  --eo-info-surface:      #E3F2FD;
+  --eo-success:           #4CAF50;
+  --eo-success-surface:   #E8F5E9;
+
+  /* ── Surface & layout ── */
+  --eo-surface:           #FFFFFF;
+  --eo-background:        #F5F5F5;
+  --eo-border:            #E0E0E0;
+  --eo-divider:           #EEEEEE;
+
+  /* ── Text ── */
+  --eo-text-primary:      #212121;
+  --eo-text-secondary:    #757575;
+  --eo-text-disabled:     #BDBDBD;
+  --eo-text-on-primary:   #FFFFFF;
+
+  /* ── Typography ── */
+  --eo-font-family:       'Inter', system-ui, -apple-system, sans-serif;
+  --eo-font-size-xs:      11px;
+  --eo-font-size-sm:      12px;
+  --eo-font-size-base:    14px;
+  --eo-font-size-md:      16px;
+  --eo-font-size-lg:      20px;
+  --eo-font-size-xl:      24px;
+  --eo-font-size-h1:      28px;
+  --eo-font-weight-regular: 400;
+  --eo-font-weight-medium:  500;
+  --eo-font-weight-bold:    600;
+  --eo-line-height-base:    1.5;
+
+  /* ── Spacing / shape ── */
+  --eo-radius-sm:         4px;
+  --eo-radius-md:         8px;
+  --eo-radius-lg:         12px;
+  --eo-radius-xl:         16px;
+  --eo-radius-full:       9999px;
+
+  /* ── Elevation ── */
+  --eo-shadow-sm:         0 1px 3px rgba(0,0,0,.08);
+  --eo-shadow-md:         0 2px 8px rgba(0,0,0,.12);
+  --eo-shadow-lg:         0 4px 16px rgba(0,0,0,.16);
+}

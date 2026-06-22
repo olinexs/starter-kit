@@ -1,0 +1,6 @@
+{
+    "name": "Vue + Vuetify",
+    "description": "Vue 3 SPA with Vuetify 3 UI framework and Ecogreen design system",
+    "framework": "vue",
+    "supports": ["js", "ts"]
+}

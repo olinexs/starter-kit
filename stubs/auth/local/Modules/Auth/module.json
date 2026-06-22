@@ -1,0 +1,10 @@
+{
+    "name": "Auth",
+    "alias": "auth",
+    "description": "Authentication module — Local (Laravel Sanctum)",
+    "version": "1.0.0",
+    "providers": [
+        "Modules\\Auth\\app\\Providers\\AuthServiceProvider"
+    ],
+    "aliases": []
+}

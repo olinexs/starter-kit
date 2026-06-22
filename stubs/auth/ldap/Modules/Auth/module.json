@@ -1,0 +1,10 @@
+{
+    "name": "Auth",
+    "alias": "auth",
+    "description": "Authentication module — LDAP (Active Directory)",
+    "version": "1.0.0",
+    "providers": [
+        "Modules\\Auth\\app\\Providers\\AuthServiceProvider"
+    ],
+    "aliases": []
+}

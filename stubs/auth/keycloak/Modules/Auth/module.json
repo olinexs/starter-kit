@@ -1,0 +1,10 @@
+{
+    "name": "Auth",
+    "alias": "auth",
+    "description": "Authentication module — Keycloak SSO",
+    "version": "1.0.0",
+    "providers": [
+        "Modules\\Auth\\app\\Providers\\AuthServiceProvider"
+    ],
+    "aliases": []
+}
