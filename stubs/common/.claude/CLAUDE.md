@@ -36,17 +36,21 @@ When the developer says they want a new module (any phrasing):
 cd backend
 php artisan module:make {ModuleName}
 
-# Creates:
-# backend/Modules/{ModuleName}/              ← backend
-# frontend/{SRC_DIR}/modules/{moduleName}/ ← frontend
+# This single command (eoads/module-make) scaffolds AND wires both sides:
+# backend/Modules/{ModuleName}/              ← backend module (+ composer PSR-4, modules_statuses.json)
+# frontend/{SRC_DIR}/modules/{moduleName}/   ← frontend module (service, store, view, routes)
+# It also auto-imports the route into frontend/{SRC_DIR}/plugins/router/routes.{EXT}
+# and adds the nav item in frontend/{SRC_DIR}/layouts/DefaultLayout.vue — no manual wiring needed.
 
-# 2. Register the frontend route in frontend/{SRC_DIR}/plugins/router/routes.{EXT}
-# 3. Add the nav item in frontend/{SRC_DIR}/layouts/DefaultLayout.vue (navItems)
-# 4. Add a brief to the active sprint doc
-# 5. Confirm to the developer what was created
+# 2. composer dump-autoload
+# 3. Add a brief to the active sprint doc
+# 4. Confirm to the developer what was created
 ```
 
-Never ask the developer to run these commands themselves. Run them directly.
+`module:make` is PascalCase only (e.g. `PurchaseOrder`). It handles both backend and
+frontend in one step — do NOT scaffold the frontend folder by hand or re-edit the
+router/nav; the command already did it. Never ask the developer to run these commands
+themselves. Run them directly.
 
 ---
 
