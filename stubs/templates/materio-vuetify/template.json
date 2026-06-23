@@ -3,6 +3,7 @@
     "description": "Vue 3 + Vuetify 3 admin template by ThemeSelection",
     "framework": "vue",
     "zip": "materio-vuetify-vuejs-admin-template-v3.4.0.zip",
+    "download": "https://raw.githubusercontent.com/olinexs/starter-kit/main/stubs/templates/materio-vuetify/materio-vuetify-vuejs-admin-template-v3.4.0.zip",
     "versions": {
         "starter-kit": {
             "label": "Starter Kit (recommended — clean slate, AI builds modules)",
