@@ -8,7 +8,8 @@
 #   └── frontend/  ← scaffolded automatically by eoads:install
 #
 # Usage:
-#   ./create-project.sh
+#   ./create-project.sh <project-name>   # one command, no prompts
+#   ./create-project.sh                  # will prompt for the name
 #
 set -e
 
@@ -18,8 +19,11 @@ echo "  EO-ADS Project Bootstrap"
 echo "========================================"
 echo ""
 
-# 0. Project name
-read -rp "Project folder name: " PROJECT
+# 0. Project name (from argument, or prompt if not given)
+PROJECT="$1"
+if [ -z "$PROJECT" ]; then
+  read -rp "Project folder name: " PROJECT
+fi
 if [ -z "$PROJECT" ]; then
   echo "Project name is required. Aborting."
   exit 1

@@ -21,44 +21,86 @@ my-project/
         └── modules/                ← Frontend modules (mirror of backend)
 ```
 
+> **Note on ordering:** the `backend/` folder is created by `laravel new backend`,
+> and the `frontend/` folder is created by `php artisan eoads:install`. You don't
+> create these folders yourself — the tooling generates them.
+
 ---
 
-## Quick start (one command)
+## Requirements
 
-For a brand-new project from scratch, use the bootstrap script — it prompts for a
-project name, then creates the Laravel backend, installs the starter kit, and
-scaffolds the frontend (with `npm install`) automatically.
+Make sure these are installed and on your `PATH` before starting:
+
+- **PHP** 8.2+ and **Composer**
+- The **`laravel`** installer (`composer global require laravel/installer`)
+- **Node.js** and **npm**
+
+---
+
+## Quick start (one command — recommended)
+
+Install the global `eoads` command once:
+
+```bash
+composer global require eoads/installer
+```
+
+> Ensure Composer's global bin is on your `PATH` (see [installer/README.md](installer/README.md)).
+
+Then, from **any folder**, create a complete project:
+
+```bash
+eoads new my-project
+```
+
+This does **everything** automatically and **asks your preferences** during install
+(project name, team, sprint, frontend template, JS/TS, version, auth):
+
+1. Creates `my-project/`
+2. Runs `laravel new backend`
+3. Runs `composer require eoads/eoads-starter-kit`
+4. Runs `php artisan eoads:install` (the interactive questionnaire) + scaffolds the
+   frontend with `npm install`
+
+The result is `my-project/backend/` + `my-project/frontend/`, ready to run.
+Omit the name (`eoads new`) and it will prompt for one.
+
+### Alternative: bootstrap script (no global install)
+
+If you'd rather not install the global command, run the bundled script from this
+repo instead — same result:
 
 ```bash
 # macOS / Linux / Git-Bash
-./create-project.sh
+./create-project.sh my-project
 ```
 ```bat
 :: Windows
-create-project.bat
+create-project.bat my-project
 ```
 
-> Requires PHP, Composer, the `laravel` installer, and Node/npm on your machine.
-> The result is `my-project/backend/` + `my-project/frontend/`, ready to run.
+> Run it from the **parent** directory — the script creates `my-project/` for you.
 
-For the manual step-by-step flow, see **Installation** below.
+Prefer to do each step by hand? See **Manual installation** below.
 
 ---
 
-## Installation
+## Manual installation
+
+These steps do exactly what the one-command script does, just by hand:
 
 ```bash
 # 1. Create the project root
 mkdir my-project && cd my-project
 
-# 2. Create the Laravel backend
+# 2. Create the Laravel backend (creates the backend/ folder)
 laravel new backend
 cd backend
 
 # 3. Require the starter kit
 composer require eoads/eoads-starter-kit
 
-# 4. Run the interactive installer
+# 4. Run the interactive installer (creates the frontend/ folder + npm install)
 php artisan eoads:install
 ```
 
@@ -79,6 +121,18 @@ claude .
 ```
 
 Tell Claude: *"I want to create a module for Purchase Orders"* — it scaffolds everything automatically.
+
+---
+
+## Running the project
+
+```bash
+# Backend API (port 8000)
+cd backend && php artisan serve
+
+# Frontend SPA (port 5173) — in a second terminal
+cd frontend && npm run dev
+```
 
 ---
 

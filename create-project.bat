@@ -8,7 +8,8 @@
 ::   \-- frontend\  <- scaffolded automatically by eoads:install
 ::
 :: Usage:
-::   create-project.bat
+::   create-project.bat <project-name>   (one command, no prompts)
+::   create-project.bat                   (will prompt for the name)
 ::
 setlocal
 
@@ -18,8 +19,9 @@ echo   EO-ADS Project Bootstrap
 echo ========================================
 echo.
 
-:: 0. Project name
-set /p PROJECT="Project folder name: "
+:: 0. Project name (from argument, or prompt if not given)
+set "PROJECT=%~1"
+if "%PROJECT%"=="" set /p PROJECT="Project folder name: "
 if "%PROJECT%"=="" (
   echo Project name is required. Aborting.
   exit /b 1
