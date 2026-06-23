@@ -26,6 +26,18 @@ class InstallCommand extends Command
         $this->stubsPath = dirname(__DIR__, 2) . '/stubs';
         $this->force     = $this->option('force');
 
+        // Pre-flight: the frontend template is shipped as a zip and extracted
+        // with ZipArchive. Fail fast with a clear fix instead of crashing
+        // mid-install if the PHP zip extension is not enabled.
+        if (! class_exists(\ZipArchive::class)) {
+            $this->components->error('The PHP "zip" extension is required but not enabled.');
+            $this->line('  Enable it in your php.ini (uncomment <comment>extension=zip</comment>),');
+            $this->line('  then restart your terminal and re-run <comment>php artisan eoads:install</comment>.');
+            $this->line('  Check your php.ini path with: <comment>php --ini</comment>');
+
+            return self::FAILURE;
+        }
+
         $this->components->info('Installing EO-ADS Starter Kit...');
         $this->newLine();
 
