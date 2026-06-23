@@ -25,7 +25,7 @@ These actions happen WITHOUT the developer needing to ask:
 | Finishing a brief | Tick the checklist in the sprint doc + commit |
 | Any new file created | Follow naming conventions below without being told |
 | Asked to implement an API | Create FormRequest + Controller + Action + Repository |
-| Asked to build a page | Create Service + Store + View + wire route in routes.js |
+| Asked to build a page | Create Service + Store + View + wire route in routes.{EXT} |
 
 ### Creating a new module — exact steps
 
@@ -38,10 +38,10 @@ php artisan module:make {ModuleName}
 
 # Creates:
 # backend/Modules/{ModuleName}/              ← backend
-# frontend/resources/js/modules/{moduleName}/ ← frontend
+# frontend/{SRC_DIR}/modules/{moduleName}/ ← frontend
 
-# 2. Register the frontend route in frontend/resources/js/plugins/router/routes.js
-# 3. Add the nav item in frontend/resources/js/layouts/DefaultLayout.vue (navItems)
+# 2. Register the frontend route in frontend/{SRC_DIR}/plugins/router/routes.{EXT}
+# 3. Add the nav item in frontend/{SRC_DIR}/layouts/DefaultLayout.vue (navItems)
 # 4. Add a brief to the active sprint doc
 # 5. Confirm to the developer what was created
 ```
@@ -60,7 +60,7 @@ Never ask the developer to run these commands themselves. Run them directly.
 | Backend | Laravel 12, API-only, port 8000 |
 | Frontend | Vue 3 + Vite SPA, port 5173 |
 | Module system | nwidart/laravel-modules (`backend/Modules/`) |
-| Frontend modules | `frontend/resources/js/modules/` |
+| Frontend modules | `frontend/{SRC_DIR}/modules/` |
 | Auth | {AUTH_LABEL} |
 | Database | MariaDB (Galera multi-node in production) |
 | State | Pinia |
@@ -160,40 +160,40 @@ backend/Modules/{Name}/
 
 ### Rule 1 — Module structure
 ```
-frontend/resources/js/modules/{moduleName}/
-├── services/{moduleName}Service.js   ← ALL axios calls
-├── stores/{moduleName}Store.js       ← Pinia store
+frontend/{SRC_DIR}/modules/{moduleName}/
+├── services/{moduleName}Service.{EXT}   ← ALL axios calls
+├── stores/{moduleName}Store.{EXT}       ← Pinia store
 ├── views/{ModuleName}View.vue        ← page component
 ├── components/                       ← local components
-└── routes.js                         ← route definitions
+└── routes.{EXT}                         ← route definitions
 ```
 
 ### Rule 2 — Always use the shared axios instance
-```js
+```{CODE_LANG}
 import { api } from '@/plugins/axios'   // ✅ named export — the axios instance
 import axios from 'axios'               // ❌
 ```
 
 ### Rule 3 — Composition API only
 ```vue
-<script setup>  <!-- ✅ always -->
+<script setup{TS_ATTR}>  <!-- ✅ always -->
 ```
 
 ### Rule 4 — Service layer owns all API calls
-```js
+```{CODE_LANG}
 const res = await itemService.index(params)
 ```
 
 ### Rule 5 — Register every new module route
-```js
-// frontend/resources/js/plugins/router/routes.js
+```{CODE_LANG}
+// frontend/{SRC_DIR}/plugins/router/routes.{EXT}
 import itemRoutes from '@/modules/item/routes'
 export const routes = [...existing, ...itemRoutes]
 ```
 
 ### Rule 6 — Add nav item for every user-facing module
-```js
-// frontend/resources/js/layouts/DefaultLayout.vue — navItems array
+```{CODE_LANG}
+// frontend/{SRC_DIR}/layouts/DefaultLayout.vue — navItems array
 { title: 'Item', icon: 'ri-package-line', to: '/item' }
 ```
 

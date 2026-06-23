@@ -105,6 +105,25 @@ class InstallCommand extends Command
         ];
 
         $this->vars['SPRINT_PADDED'] = str_pad($this->vars['SPRINT_NUMBER'], 2, '0', STR_PAD_LEFT);
+
+        // Frontend language placeholders — defaults for docs; refined in
+        // selectTemplate() once the developer picks JS or TS.
+        $this->setLangVars();
+    }
+
+    /**
+     * Populate the frontend-language doc placeholders from $this->lang.
+     * Used by CLAUDE.md and other common stubs so paths/extensions match
+     * the chosen language (resources/js + .js  vs  resources/ts + .ts).
+     */
+    private function setLangVars(): void
+    {
+        $isTs = $this->lang === 'ts';
+
+        $this->vars['SRC_DIR']   = $this->srcDir();
+        $this->vars['EXT']       = $this->lang;
+        $this->vars['TS_ATTR']   = $isTs ? ' lang="ts"' : '';
+        $this->vars['CODE_LANG'] = $isTs ? 'ts' : 'js';
     }
 
     // ─── Template selection ───────────────────────────────────────────────────
@@ -140,6 +159,9 @@ class InstallCommand extends Command
 
         $this->vars['LANG']     = $this->lang;
         $this->vars['VERSION']  = $this->version;
+
+        // Now that the language is known, refresh the doc placeholders.
+        $this->setLangVars();
 
         $this->components->twoColumnDetail('<fg=cyan>Template</>', $this->selectedTemplate['name'] . ' · ' . strtoupper($this->lang) . ' · ' . $this->version);
     }
@@ -344,7 +366,9 @@ class InstallCommand extends Command
 
     private function publishAuthFrontend(): void
     {
-        $authFrontend = $this->stubsPath . '/auth/' . $this->auth . '/frontend';
+        // Frontend stubs are split by language (js/ and ts/) — pick the one
+        // matching the selected language so a TS project gets .ts files.
+        $authFrontend = $this->stubsPath . '/auth/' . $this->auth . '/frontend/' . $this->lang;
 
         if (! is_dir($authFrontend)) {
             return;
@@ -358,7 +382,7 @@ class InstallCommand extends Command
             $relative = ltrim(str_replace($authFrontend, '', $file->getPathname()), '/\\');
             $relative = str_replace('\\', '/', $relative);
 
-            $stub        = 'auth/' . $this->auth . '/frontend/' . $relative;
+            $stub        = 'auth/' . $this->auth . '/frontend/' . $this->lang . '/' . $relative;
             $destination = 'frontend/' . $relative;
 
             $this->publishFile($stub, $destination);
@@ -448,7 +472,7 @@ ENV;
         }
 
         $frontendDest = base_path('../frontend');
-        $jsDest       = $frontendDest . '/resources/js';
+        $jsDest       = $frontendDest . '/' . $this->srcDir();
 
         foreach ([$frontendDest, $jsDest, $jsDest . '/.template'] as $d) {
             if (! is_dir($d)) {
@@ -502,9 +526,10 @@ ENV;
 
         $zip->close();
 
-        $this->components->twoColumnDetail('<fg=green>EXTRACT</> frontend/ (root)',           "{$stats['root']} files");
-        $this->components->twoColumnDetail('<fg=green>EXTRACT</> resources/js/ (usable core)', "{$stats['core']} files");
-        $this->components->twoColumnDetail('<fg=green>EXTRACT</> resources/js/.template/ (ref)', "{$stats['template']} files");
+        $src = $this->srcDir();
+        $this->components->twoColumnDetail('<fg=green>EXTRACT</> frontend/ (root)',                 "{$stats['root']} files");
+        $this->components->twoColumnDetail("<fg=green>EXTRACT</> {$src}/ (usable core)",            "{$stats['core']} files");
+        $this->components->twoColumnDetail("<fg=green>EXTRACT</> {$src}/.template/ (ref)",          "{$stats['template']} files");
 
         // Overlay our working stubs (overrides template defaults).
         $this->publishFrontendStubs($tKey);
@@ -564,7 +589,9 @@ ENV;
      */
     private function publishFrontendStubs(string $tKey): void
     {
-        $commonFrontend = $this->stubsPath . '/common/frontend';
+        // Common overlay is split by language (js/ and ts/) — pick the one
+        // matching the selected language so a TS project gets .ts files.
+        $commonFrontend = $this->stubsPath . '/common/frontend/' . $this->lang;
 
         if (is_dir($commonFrontend)) {
             $iterator = new \RecursiveIteratorIterator(
@@ -575,31 +602,72 @@ ENV;
                 $relative = ltrim(str_replace($commonFrontend, '', $file->getPathname()), '/\\');
                 $relative = str_replace('\\', '/', $relative);
 
-                $this->publishFile('common/frontend/' . $relative, 'frontend/' . $relative);
+                $this->publishFile('common/frontend/' . $this->lang . '/' . $relative, 'frontend/' . $relative);
             }
         }
 
-        // Template-specific root overrides.
-        foreach (['vite.config.js', 'index.html'] as $rootFile) {
-            $stub = "templates/{$tKey}/{$rootFile}";
-            if (file_exists("{$this->stubsPath}/{$stub}")) {
-                $this->publishFile($stub, "frontend/{$rootFile}");
-            }
+        // Template-specific root override: vite config (extension follows the
+        // chosen language so a TS project gets vite.config.ts).
+        $viteConfig = $this->lang === 'ts' ? 'vite.config.ts' : 'vite.config.js';
+        $viteStub   = "templates/{$tKey}/{$viteConfig}";
+        if (file_exists("{$this->stubsPath}/{$viteStub}")) {
+            $this->publishFile($viteStub, "frontend/{$viteConfig}");
         }
+
+        // index.html — the entry <script src> must point at the right entry
+        // file (main.ts for TypeScript, main.js for JavaScript).
+        $this->publishIndexHtml($tKey);
 
         // Write the .template/ guide for AI agents.
         $this->writeTemplateReadme();
     }
 
+    /**
+     * Publish the template's index.html, rewriting the entry <script src> to
+     * point at the language-appropriate entry file (main.ts for TS projects).
+     */
+    private function publishIndexHtml(string $tKey): void
+    {
+        $stub = "templates/{$tKey}/index.html";
+        $src  = "{$this->stubsPath}/{$stub}";
+
+        if (! file_exists($src)) {
+            return;
+        }
+
+        $dest = base_path('../frontend/index.html');
+
+        if (file_exists($dest) && ! $this->force) {
+            $this->components->twoColumnDetail('<fg=yellow>SKIP</>  frontend/index.html', 'already exists');
+            return;
+        }
+
+        $content = $this->replacePlaceholders(file_get_contents($src));
+
+        if ($this->lang === 'ts') {
+            $content = str_replace('/resources/js/main.js', '/resources/ts/main.ts', $content);
+        }
+
+        $dir = dirname($dest);
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        file_put_contents($dest, $content);
+        $this->components->twoColumnDetail('<fg=green>CREATE</> frontend/index.html', 'done');
+    }
+
     private function writeTemplateReadme(): void
     {
-        $dest = base_path('../frontend/resources/js/.template/README.md');
+        $src  = $this->srcDir();          // resources/js or resources/ts
+        $ext  = $this->lang;              // js or ts
+        $dest = base_path("../frontend/{$src}/.template/README.md");
 
         if (file_exists($dest) && ! $this->force) {
             return;
         }
 
-        $content = <<<'MD'
+        $content = <<<MD
 # .template/ — Read-Only AI Reference
 
 This folder holds the **original** template source (pages, components, views,
@@ -610,25 +678,25 @@ layouts, stores, the file-based router, etc.) extracted from the vendor theme.
 - **Do NOT import from `.template/` in working code.** It is reference only.
 - **Do NOT edit files here.** Treat it as read-only documentation.
 - When building a feature, **copy the relevant pattern** out of `.template/`
-  into the working tree (`resources/js/modules/`, `resources/js/pages/`, etc.),
+  into the working tree (`{$src}/modules/`, `{$src}/pages/`, etc.),
   then adapt it.
 
 ## Where working code lives
 
 | Concern        | Working location                          |
 |----------------|-------------------------------------------|
-| Entry point    | `resources/js/main.js`                    |
-| Router         | `resources/js/plugins/router/`            |
-| HTTP client    | `resources/js/plugins/axios.js`           |
-| Feature module | `resources/js/modules/<name>/`            |
-| Shared core    | `resources/js/@core/`, `@layouts/`        |
+| Entry point    | `{$src}/main.{$ext}`                       |
+| Router         | `{$src}/plugins/router/`                   |
+| HTTP client    | `{$src}/plugins/axios.{$ext}`              |
+| Feature module | `{$src}/modules/<name>/`                   |
+| Shared core    | `{$src}/@core/`, `@layouts/`               |
 
 The vendor `@core/` and `@layouts/` are usable directly — only the demo
 content (pages/components/views) is parked here for reference.
 MD;
 
         file_put_contents($dest, $content . "\n");
-        $this->components->twoColumnDetail('<fg=green>CREATE</> resources/js/.template/README.md', 'done');
+        $this->components->twoColumnDetail("<fg=green>CREATE</> {$src}/.template/README.md", 'done');
     }
 
     private function installFrontendDependencies(string $frontendPath): void
@@ -670,6 +738,15 @@ MD;
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    /**
+     * Frontend source root, relative to frontend/. TypeScript projects use
+     * resources/ts so the folder name matches the language; JS uses resources/js.
+     */
+    private function srcDir(): string
+    {
+        return $this->lang === 'ts' ? 'resources/ts' : 'resources/js';
+    }
 
     private function publishFile(string $stub, string $destination): void
     {
