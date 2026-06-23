@@ -47,7 +47,19 @@ cd backend
 :: 3. Starter kit (installs + scaffolds frontend, runs npm install)
 echo.
 echo [3/4] Installing EO-ADS starter kit...
+:: The starter-kit repo is public, so make any source fallback use HTTPS
+:: (no SSH key / GitHub token needed -- avoids the credential prompt).
+call git config --global url."https://github.com/".insteadOf "git@github.com:"
+:: Try the normal install. Some corporate antivirus (e.g. Kaspersky) locks the
+:: downloaded dist zip mid-write, causing a "Permission denied" failure. If that
+:: happens, clear the cache and retry via source, which sidesteps the zip scan.
 call composer require eoads/eoads-starter-kit
+if errorlevel 1 (
+  echo.
+  echo   Dist install failed ^(often a corporate antivirus file-lock^). Retrying via source...
+  call composer clear-cache
+  call composer require eoads/eoads-starter-kit --prefer-source
+)
 if errorlevel 1 ( echo composer require failed. Aborting. & exit /b 1 )
 call php artisan eoads:install
 
