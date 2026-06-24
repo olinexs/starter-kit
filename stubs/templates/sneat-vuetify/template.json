@@ -3,7 +3,7 @@
     "description": "Vue 3 + Vuetify 3 admin template by ThemeSelection",
     "framework": "vue",
     "zip": "sneat-vuetify-vuejs-admin-template-v2.3.0.zip",
-    "download": "https://raw.githubusercontent.com/olinexs/starter-kit/main/stubs/templates/sneat-vuetify/sneat-vuetify-vuejs-admin-template-v2.3.0.zip",
+    "download": "https://github.com/olinexs/starter-kit/releases/download/v1.1.0/sneat-vuetify-vuejs-admin-template-v2.3.0.zip",
     "versions": {
         "starter-kit": {
             "label": "Starter Kit (recommended — clean slate, AI builds modules)",
