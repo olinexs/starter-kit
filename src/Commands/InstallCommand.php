@@ -456,10 +456,10 @@ ENV;
             return;
         }
 
-        $zipFile = $this->stubsPath . '/templates/' . $tKey . '/' . ($this->selectedTemplate['zip'] ?? '');
+        $zipFile = $this->ensureTemplateZip($tKey, $this->selectedTemplate['zip'] ?? '');
 
-        if (! file_exists($zipFile)) {
-            $this->components->warn("Template zip not found: {$zipFile}");
+        if ($zipFile === null) {
+            $this->components->warn('Frontend template could not be obtained — skipping frontend.');
             return;
         }
 
@@ -699,23 +699,211 @@ MD;
         $this->components->twoColumnDetail("<fg=green>CREATE</> {$src}/.template/README.md", 'done');
     }
 
+    /**
+     * Locate the chosen template's zip, downloading it on demand.
+     *
+     * To keep `composer require` small the heavy template archives are
+     * export-ignored from the package dist (see .gitattributes), so a normal
+     * install ships without them. The first time a template is chosen we fetch
+     * just that one zip from its `download` URL and cache it under the user's
+     * home dir so re-installs reuse it. When working from a git checkout the
+     * zip is present locally and used directly. Returns the absolute path, or
+     * null if it could not be obtained.
+     */
+    private function ensureTemplateZip(string $tKey, string $zipName): ?string
+    {
+        if ($zipName === '') {
+            return null;
+        }
+
+        // 1. Bundled / git checkout — already on disk.
+        $local = $this->stubsPath . '/templates/' . $tKey . '/' . $zipName;
+        if (file_exists($local)) {
+            return $local;
+        }
+
+        // 2. Previously downloaded into the per-user cache.
+        $cached = $this->templateCacheDir() . '/' . $tKey . '/' . $zipName;
+        if (file_exists($cached)) {
+            return $cached;
+        }
+
+        // 3. Download just this one template.
+        $url = $this->selectedTemplate['download'] ?? '';
+        if ($url === '') {
+            $this->components->error("Template '{$zipName}' is not bundled and template.json has no \"download\" URL.");
+            return null;
+        }
+
+        $this->newLine();
+        $this->components->info("Downloading {$this->selectedTemplate['name']} template (one-time, cached for re-use)...");
+
+        if (! is_dir(dirname($cached))) {
+            mkdir(dirname($cached), 0755, true);
+        }
+
+        if (! $this->downloadFile($url, $cached)) {
+            $this->components->error("Failed to download template from: {$url}");
+            return null;
+        }
+
+        $this->components->twoColumnDetail("<fg=green>DOWNLOAD</> {$zipName}", 'done');
+        return $cached;
+    }
+
+    private function templateCacheDir(): string
+    {
+        $home = getenv('HOME') ?: getenv('USERPROFILE') ?: sys_get_temp_dir();
+        return rtrim(str_replace('\\', '/', $home), '/') . '/.eoads/templates';
+    }
+
+    /**
+     * Download a URL to a local path atomically (writes to a .part file, then
+     * renames). Prefers cURL for reliable HTTPS + redirect handling; falls back
+     * to the stream wrapper when the cURL extension is unavailable.
+     */
+    private function downloadFile(string $url, string $dest): bool
+    {
+        $tmp = $dest . '.part';
+        @unlink($tmp);
+
+        // Try each method in turn; the first that lands a non-empty file wins.
+        // Order is chosen for reliability behind corporate networks/AV: the
+        // system curl binary (Windows 10+/macOS/Linux) uses the OS certificate
+        // store and is the most robust, so it leads.
+        $errors = [];
+
+        foreach (['systemCurl', 'phpCurl', 'streamCopy'] as $method) {
+            @unlink($tmp);
+            $err = $this->{'download' . ucfirst($method)}($url, $tmp);
+
+            if ($err === null && file_exists($tmp) && filesize($tmp) > 0) {
+                return rename($tmp, $dest);
+            }
+
+            if ($err !== null) {
+                $errors[] = "{$method}: {$err}";
+            }
+        }
+
+        @unlink($tmp);
+
+        $this->newLine();
+        $this->line('  <fg=red>Could not download the template.</> Tried:');
+        foreach ($errors as $e) {
+            $this->line("    - {$e}");
+        }
+        $this->line('  <comment>Recovery:</> download the zip manually and drop it in:');
+        $this->line("    <comment>{$dest}</comment>");
+        $this->line('  then re-run <comment>php artisan eoads:install --force</comment>.');
+
+        return false;
+    }
+
+    /** Download via the system curl binary (uses the OS cert store). */
+    private function downloadSystemCurl(string $url, string $tmp): ?string
+    {
+        if (! $this->commandExists('curl')) {
+            return 'curl binary not on PATH';
+        }
+
+        $cmd = 'curl -fsSL --retry 3 --connect-timeout 30 -A eoads-starter-kit '
+             . '-o ' . escapeshellarg($tmp) . ' ' . escapeshellarg($url) . ' 2>&1';
+        exec($cmd, $out, $code);
+
+        return $code === 0 ? null : ('exit ' . $code . ' ' . trim(implode(' ', $out)));
+    }
+
+    /** Download via the PHP cURL extension. */
+    private function downloadPhpCurl(string $url, string $tmp): ?string
+    {
+        if (! function_exists('curl_init')) {
+            return 'php-curl extension not available';
+        }
+
+        $fh = fopen($tmp, 'wb');
+        if ($fh === false) {
+            return 'cannot open temp file';
+        }
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_FILE           => $fh,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_FAILONERROR    => true,
+            CURLOPT_CONNECTTIMEOUT => 30,
+            CURLOPT_TIMEOUT        => 600,
+            CURLOPT_USERAGENT      => 'eoads-starter-kit',
+        ]);
+        $ok  = curl_exec($ch) !== false;
+        $msg = $ok ? null : ('cURL error ' . curl_errno($ch) . ': ' . curl_error($ch));
+        curl_close($ch);
+        fclose($fh);
+
+        return $msg;
+    }
+
+    /** Download via the stream wrapper (requires allow_url_fopen). */
+    private function downloadStreamCopy(string $url, string $tmp): ?string
+    {
+        if (! ini_get('allow_url_fopen')) {
+            return 'allow_url_fopen is disabled';
+        }
+
+        $ctx = stream_context_create(['http' => ['user_agent' => 'eoads-starter-kit', 'timeout' => 600]]);
+
+        return @copy($url, $tmp, $ctx) ? null : 'copy() failed';
+    }
+
     private function installFrontendDependencies(string $frontendPath): void
     {
         if (! file_exists("{$frontendPath}/package.json")) {
             return;
         }
 
-        $this->newLine();
-        $this->components->info('Installing frontend dependencies...');
+        [$installer, $args] = $this->resolveFrontendInstaller($frontendPath);
 
-        $command = 'cd ' . escapeshellarg($frontendPath) . ' && npm install';
+        $this->newLine();
+        $this->components->info("Installing frontend dependencies ({$installer} {$args})...");
+
+        $command = 'cd ' . escapeshellarg($frontendPath) . " && {$installer} {$args}";
         passthru($command, $exitCode);
 
         if ($exitCode === 0) {
-            $this->components->twoColumnDetail('<fg=green>npm install</>', 'done');
+            $this->components->twoColumnDetail("<fg=green>{$installer} {$args}</>", 'done');
         } else {
-            $this->components->warn('npm install failed — run it manually in frontend/');
+            $this->components->warn("{$installer} {$args} failed — run it manually in frontend/");
         }
+    }
+
+    /**
+     * Choose the fastest reproducible install command for the extracted
+     * frontend. The Vuetify templates ship a committed pnpm-lock.yaml, so when
+     * pnpm is available we install from the frozen lockfile (no resolution,
+     * reproducible). If only an npm lockfile is present we use `npm ci` for the
+     * same reason. Otherwise we fall back to a plain `npm install`.
+     *
+     * @return array{0:string,1:string} [installer, args]
+     */
+    private function resolveFrontendInstaller(string $frontendPath): array
+    {
+        if (file_exists("{$frontendPath}/pnpm-lock.yaml") && $this->commandExists('pnpm')) {
+            return ['pnpm', 'install --frozen-lockfile'];
+        }
+
+        if (file_exists("{$frontendPath}/package-lock.json") && $this->commandExists('npm')) {
+            return ['npm', 'ci'];
+        }
+
+        return ['npm', 'install'];
+    }
+
+    private function commandExists(string $command): bool
+    {
+        $probe = stripos(PHP_OS, 'WIN') === 0 ? "where {$command}" : "command -v {$command}";
+        exec($probe . ' 2>&1', $output, $exitCode);
+
+        return $exitCode === 0;
     }
 
     // ─── Ensure backend directories exist ────────────────────────────────────

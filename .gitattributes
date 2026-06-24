@@ -1,0 +1,7 @@
+# Keep the heavy frontend template archives out of the Composer dist tarball.
+# They stay committed (so a git checkout / CI has them), but `composer require`
+# no longer downloads ~72 MB of zips when only one template is ever extracted.
+# eoads:install downloads just the chosen template on demand (see template.json
+# "download" URLs and InstallCommand::ensureTemplateZip).
+stubs/templates/materio-vuetify/*.zip export-ignore
+stubs/templates/sneat-vuetify/*.zip   export-ignore
